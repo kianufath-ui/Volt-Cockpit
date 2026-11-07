@@ -14,6 +14,7 @@
   const ACCURACY_MAX = 60;  // m — fixes worse than this are not trusted for speed/trip
 
   const state = {
+    currentView: 'ride',
     bms: null,
     bmsData: null,
     bmsStatus: 'off',
@@ -206,7 +207,7 @@
       attribution: cfg.tileAttribution || '&copy; OpenStreetMap &copy; CARTO',
       subdomains: 'abcd',
       maxZoom: 20,
-      maxNativeZoom: 19,
+      maxNativeZoom: 18,
       detectRetina: true,
     }).addTo(map);
 
@@ -1209,6 +1210,7 @@
 
   /* ---------------- UI wiring ---------------- */
   function switchView(name) {
+    state.currentView = name;
     $$('.view').forEach((v) => v.classList.toggle('active', v.id === name + 'View'));
     const panel = $('#settingsPanel');
     if (panel) panel.classList.remove('cp-open');
@@ -1455,6 +1457,7 @@
     sub.textContent = alertItem.valStr + (alertItem.thresholdStr ? ' · ' + alertItem.thresholdStr : '');
 
     banner.hidden = false;
+    banner.style.display = '';
 
     if (hudAlertTimer) clearTimeout(hudAlertTimer);
     // Auto-dismiss after 5s so rider can simply ignore it while riding
@@ -1471,6 +1474,7 @@
     const banner = $('#hudAlertBanner');
     if (banner) {
       banner.hidden = true;
+      banner.style.display = 'none';
       banner.classList.remove('ha-visible');
     }
     if (hudAlertTimer) {
@@ -1681,7 +1685,8 @@
     dash.addEventListener('touchstart', (e) => {
       const panel = $('#settingsPanel');
       if (panel && panel.classList.contains('cp-open')) return;
-      if (state.currentView !== 'ride') return;
+      const rideView = $('#rideView');
+      if (rideView && !rideView.classList.contains('active')) return;
 
       // Ignore interactive buttons, inputs, close buttons, and alert banner
       if (e.target.closest('button, input, select, textarea, .cp-row, .ha-close, #haCloseBtn, #hudAlertBanner, .d-time, .d-right-info')) {
@@ -1739,7 +1744,8 @@
     dash.addEventListener('mousedown', (e) => {
       const panel = $('#settingsPanel');
       if (panel && panel.classList.contains('cp-open')) return;
-      if (state.currentView !== 'ride') return;
+      const rideView = $('#rideView');
+      if (rideView && !rideView.classList.contains('active')) return;
       if (e.target.closest('button, input, select, textarea, .cp-row, .ha-close, #haCloseBtn, #hudAlertBanner, .d-time, .d-right-info, .leaflet-interactive')) {
         return;
       }

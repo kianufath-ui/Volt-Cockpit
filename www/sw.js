@@ -1,5 +1,5 @@
 /* Volt — offline shell + map tile cache */
-const SHELL_CACHE = 'scd-shell-v23';
+const SHELL_CACHE = 'scd-shell-v24';
 const TILE_CACHE = 'scd-tiles-v4';
 const TILE_LIMIT = 900;
 
@@ -11,6 +11,7 @@ const SHELL = [
   './js/config.js',
   './js/i18n.js',
   './js/jkbms.js',
+  './js/alertEngine.js',
   './vendor/leaflet/leaflet.js',
   './vendor/leaflet/leaflet.css',
   './vendor/leaflet/images/marker-icon.png',
