@@ -39,10 +39,12 @@
     return s;
   }
 
+  let _cmdSeq = 0;
   function buildCommand(cmd) {
     const f = new Uint8Array(20);
     f[0] = 0xaa; f[1] = 0x55; f[2] = 0x90; f[3] = 0xeb;
     f[4] = cmd;
+    f[16] = (_cmdSeq++) & 0xff;
     f[19] = crc8(f, 19);
     return f;
   }
@@ -461,22 +463,26 @@
 
       this.connected = true;
       this._attempts = 0;
-      this.lastTelemetryTs = Date.now();
+      this.lastTelemetryTs = 0;
       this.onStatus('connected', this.capDeviceName);
 
-      // Trigger initial inquiry handshake:
-      // Send 0x96 (settings & triggers cell stream) then 0x97 (device info)
+      // Trigger initial inquiry handshake with rolling sequence counter:
+      // Send 0x96 then 0x97
       setTimeout(() => { this._send(0x96).catch(() => {}); }, 150);
-      setTimeout(() => { this._send(0x97).catch(() => {}); }, 600);
+      setTimeout(() => { this._send(0x97).catch(() => {}); }, 500);
 
-      // Watchdog: JK-BMS auto-streams Frame 0x02 periodically via notifications.
-      // If no telemetry packet arrives for > 2.5 seconds, send 0x96 to nudge stream back.
-      if (this._watchdogTimer) clearInterval(this._watchdogTimer);
-      this._watchdogTimer = setInterval(() => {
-        if (this.connected && (Date.now() - this.lastTelemetryTs > 2500)) {
-          this._send(0x96).catch(() => {});
+      // Telemetry Polling Loop (950ms):
+      // If auto-streaming is active (telemetry received in last 800ms), do nothing.
+      // If no telemetry packet arrived in last 800ms (BMS requires polling),
+      // send 0x96 with an incrementing sequence counter to fetch fresh telemetry!
+      if (this._pollTimer) clearInterval(this._pollTimer);
+      this._pollTimer = setInterval(() => {
+        if (this.connected) {
+          if (Date.now() - this.lastTelemetryTs >= 800) {
+            this._send(0x96).catch(() => {});
+          }
         }
-      }, 1500);
+      }, 950);
     }
 
     async connect(scanAll) {
@@ -614,72 +620,60 @@
     _append(chunk) {
       if (!chunk || !chunk.length) return;
 
+      // Preamble Flush: If incoming packet starts fresh with 55 AA EB 90,
+      // flush any leftover trailing padding or malformed fragments.
+      if (chunk.length >= 4 && chunk[0] === 0x55 && chunk[1] === 0xaa && chunk[2] === 0xeb && chunk[3] === 0x90) {
+        this.buf = new Uint8Array(0);
+      }
+
       const merged = new Uint8Array(this.buf.length + chunk.length);
       merged.set(this.buf, 0);
       merged.set(chunk, this.buf.length);
       this.buf = merged;
 
-      // Discard noise preceding the first frame header
+      // Align with the first preamble sequence
       let start = indexOfHeader(this.buf);
-      if (start < 0) {
+      if (start > 0) {
+        this.buf = this.buf.slice(start);
+      } else if (start < 0) {
         if (this.buf.length > 3) {
           this.buf = this.buf.slice(this.buf.length - 3);
         }
         return;
       }
-      if (start > 0) {
-        this.buf = this.buf.slice(start);
-      }
 
-      while (this.buf.length >= 300) {
-        // Look for next header after offset 0
-        let next = indexOfHeader(this.buf.subarray(1));
-        if (next >= 0) next += 1;
+      // Check if a full frame has arrived
+      if (this.buf.length >= 300) {
+        const raw = this.buf;
+        let validFrame = null;
+        let frameSize = 0;
 
-        let frameCandidate = null;
-        let consumed = 0;
-
-        // Standard 300-byte frame check (Syssi JK-BMS protocol)
-        if (crc8(this.buf, 299) === this.buf[299]) {
-          frameCandidate = this.buf.subarray(0, 300);
-          consumed = (next >= 300 && next <= 320) ? next : (this.buf.length >= 320 ? 320 : 300);
-        } else if (this.buf.length >= 320 && crc8(this.buf, 319) === this.buf[319]) {
-          frameCandidate = this.buf.subarray(0, 320);
-          consumed = (next >= 320) ? next : 320;
-        } else if (next >= 0 && next < 300) {
-          // If a next header appeared before 300 bytes (e.g. short 0x01/0x03 frame),
-          // check if that short frame had a valid CRC
-          if (crc8(this.buf, next - 1) === this.buf[next - 1]) {
-            frameCandidate = this.buf.subarray(0, next);
-            consumed = next;
-          } else {
-            // Corrupt short segment, skip to next header
-            this.buf = this.buf.slice(next);
-            continue;
-          }
+        if (crc8(raw, 299) === raw[299]) {
+          validFrame = raw.subarray(0, 300);
+          frameSize = 300;
+        } else if (raw.length >= 320 && crc8(raw, 319) === raw[319]) {
+          validFrame = raw.subarray(0, 320);
+          frameSize = 320;
         }
 
-        if (frameCandidate) {
-          const parsed = parseFrame(frameCandidate);
+        if (validFrame) {
+          const parsed = parseFrame(validFrame);
           if (parsed) {
             if (parsed.type === 'telemetry') {
               this.lastTelemetryTs = Date.now();
             }
             this.onData(parsed);
           }
-          this.buf = this.buf.slice(consumed);
-        } else {
-          // If we haven't found a valid frame yet:
-          if (next >= 0 && next >= 300) {
-            // Next header is here but current 300 bytes failed CRC, skip to next header
-            this.buf = this.buf.slice(next);
-            continue;
+          // Check if another header is already buffered after this frame
+          const next = indexOfHeader(this.buf.subarray(frameSize));
+          if (next >= 0) {
+            this.buf = this.buf.slice(frameSize + next);
+          } else {
+            this.buf = new Uint8Array(0);
           }
-          if (this.buf.length > 512) {
-            // Buffer safety reset
-            this.buf = this.buf.slice(this.buf.length - 3);
-          }
-          break; // Wait for more chunks to arrive
+        } else if (this.buf.length > 380) {
+          // Safety drop if payload exceeds max size without valid CRC
+          this.buf = new Uint8Array(0);
         }
       }
     }
