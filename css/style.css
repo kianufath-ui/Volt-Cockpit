@@ -1794,17 +1794,18 @@ main { position: relative; flex: 1; min-height: 0; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 24px;
+  justify-content: center;
+  margin-bottom: 0;
 }
 
 .boot-icon-wrap {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 12px;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0 0 20px rgba(0, 229, 255, 0.45));
+  filter: drop-shadow(0 0 25px rgba(0, 229, 255, 0.5));
 }
 
 .boot-bolt {
@@ -1814,27 +1815,27 @@ main { position: relative; flex: 1; min-height: 0; }
 }
 
 @keyframes voltPulse {
-  0% { transform: scale(0.97); filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.3)); }
-  100% { transform: scale(1.03); filter: drop-shadow(0 0 22px rgba(0, 255, 163, 0.65)); }
+  0% { transform: scale(0.97); filter: drop-shadow(0 0 12px rgba(0, 229, 255, 0.35)); }
+  100% { transform: scale(1.03); filter: drop-shadow(0 0 28px rgba(0, 255, 163, 0.7)); }
 }
 
 .boot-title-row {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: center;
+  justify-content: center;
 }
 
 .boot-title {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif;
-  font-size: 3rem;
+  font-size: 3.2rem;
   font-weight: 900;
-  letter-spacing: 0.22em;
-  text-indent: 0.22em;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
   background: linear-gradient(135deg, #ffffff 15%, #b2ebf2 55%, #00e5ff 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 0 35px rgba(0, 229, 255, 0.35);
+  text-shadow: 0 0 35px rgba(0, 229, 255, 0.4);
 }
 
 .boot-edition {

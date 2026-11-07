@@ -461,19 +461,22 @@
 
       this.connected = true;
       this._attempts = 0;
+      this.lastTelemetryTs = Date.now();
       this.onStatus('connected', this.capDeviceName);
 
-      // Start recurring telemetry polling timer (every 1000ms)
-      if (this._pollTimer) clearInterval(this._pollTimer);
-      this._pollTimer = setInterval(() => {
-        if (this.connected) {
-          this._send(0x97).catch(() => {});
-        }
-      }, 1000);
+      // Trigger initial inquiry handshake:
+      // Send 0x96 (settings & triggers cell stream) then 0x97 (device info)
+      setTimeout(() => { this._send(0x96).catch(() => {}); }, 150);
+      setTimeout(() => { this._send(0x97).catch(() => {}); }, 600);
 
-      // Trigger initial inquiry frame 0x97 & 0x96
-      setTimeout(() => { this._send(0x97).catch(() => {}); }, 150);
-      setTimeout(() => { this._send(0x96).catch(() => {}); }, 500);
+      // Watchdog: JK-BMS auto-streams Frame 0x02 periodically via notifications.
+      // If no telemetry packet arrives for > 2.5 seconds, send 0x96 to nudge stream back.
+      if (this._watchdogTimer) clearInterval(this._watchdogTimer);
+      this._watchdogTimer = setInterval(() => {
+        if (this.connected && (Date.now() - this.lastTelemetryTs > 2500)) {
+          this._send(0x96).catch(() => {});
+        }
+      }, 1500);
     }
 
     async connect(scanAll) {
@@ -559,8 +562,9 @@
         const sUuid = this.activeServiceUuid || SERVICE_UUID_128;
         const cUuid = this.activeWriteUuid || this.activeNotifyUuid || CHAR_UUID_128;
 
+        // Prefer writeWithoutResponse if available so Android GATT queue doesn't wait
         try {
-          if (this.canWriteNoResponse && !this.canWriteWithResponse) {
+          if (this.canWriteNoResponse) {
             await Ble.writeWithoutResponse({
               deviceId: this.capDeviceId,
               service: sUuid,
@@ -593,10 +597,10 @@
       // Web Bluetooth write
       if (!this.characteristic) throw new Error('BMS belum terhubung');
       const ch = this.characteristic;
-      if (ch.properties.write && ch.writeValueWithResponse) {
-        await ch.writeValueWithResponse(frame);
-      } else if (ch.properties.writeWithoutResponse && ch.writeValueWithoutResponse) {
+      if (ch.properties.writeWithoutResponse && ch.writeValueWithoutResponse) {
         await ch.writeValueWithoutResponse(frame);
+      } else if (ch.properties.write && ch.writeValueWithResponse) {
+        await ch.writeValueWithResponse(frame);
       } else {
         await ch.writeValue(frame);
       }
@@ -608,35 +612,74 @@
     }
 
     _append(chunk) {
+      if (!chunk || !chunk.length) return;
+
       const merged = new Uint8Array(this.buf.length + chunk.length);
       merged.set(this.buf, 0);
       merged.set(chunk, this.buf.length);
       this.buf = merged;
 
+      // Discard noise preceding the first frame header
       let start = indexOfHeader(this.buf);
       if (start < 0) {
-        if (this.buf.length > 512) this.buf = this.buf.slice(-4);
+        if (this.buf.length > 3) {
+          this.buf = this.buf.slice(this.buf.length - 3);
+        }
         return;
       }
-      if (start > 0) this.buf = this.buf.slice(start);
+      if (start > 0) {
+        this.buf = this.buf.slice(start);
+      }
 
       while (this.buf.length >= 300) {
-        let frameLen = 0;
-        if (crc8(this.buf, 299) === this.buf[299]) frameLen = 300;
-        else if (this.buf.length >= 320 && crc8(this.buf, 319) === this.buf[319]) frameLen = 320;
+        // Look for next header after offset 0
+        let next = indexOfHeader(this.buf.subarray(1));
+        if (next >= 0) next += 1;
 
-        if (frameLen === 0) {
-          const next = indexOfHeader(this.buf.subarray(1));
-          if (next >= 0) this.buf = this.buf.slice(next + 1);
-          else this.buf = this.buf.slice(this.buf.length - 3);
-          break;
+        let frameCandidate = null;
+        let consumed = 0;
+
+        // Standard 300-byte frame check (Syssi JK-BMS protocol)
+        if (crc8(this.buf, 299) === this.buf[299]) {
+          frameCandidate = this.buf.subarray(0, 300);
+          consumed = (next >= 300 && next <= 320) ? next : (this.buf.length >= 320 ? 320 : 300);
+        } else if (this.buf.length >= 320 && crc8(this.buf, 319) === this.buf[319]) {
+          frameCandidate = this.buf.subarray(0, 320);
+          consumed = (next >= 320) ? next : 320;
+        } else if (next >= 0 && next < 300) {
+          // If a next header appeared before 300 bytes (e.g. short 0x01/0x03 frame),
+          // check if that short frame had a valid CRC
+          if (crc8(this.buf, next - 1) === this.buf[next - 1]) {
+            frameCandidate = this.buf.subarray(0, next);
+            consumed = next;
+          } else {
+            // Corrupt short segment, skip to next header
+            this.buf = this.buf.slice(next);
+            continue;
+          }
         }
 
-        const frame = this.buf.subarray(0, frameLen);
-        this.buf = this.buf.slice(frameLen);
-        const parsed = parseFrame(frame);
-        if (parsed) {
-          this.onData(parsed);
+        if (frameCandidate) {
+          const parsed = parseFrame(frameCandidate);
+          if (parsed) {
+            if (parsed.type === 'telemetry') {
+              this.lastTelemetryTs = Date.now();
+            }
+            this.onData(parsed);
+          }
+          this.buf = this.buf.slice(consumed);
+        } else {
+          // If we haven't found a valid frame yet:
+          if (next >= 0 && next >= 300) {
+            // Next header is here but current 300 bytes failed CRC, skip to next header
+            this.buf = this.buf.slice(next);
+            continue;
+          }
+          if (this.buf.length > 512) {
+            // Buffer safety reset
+            this.buf = this.buf.slice(this.buf.length - 3);
+          }
+          break; // Wait for more chunks to arrive
         }
       }
     }
@@ -644,6 +687,10 @@
     _onDisconnected() {
       this.connected = false;
       this.characteristic = null;
+      if (this._watchdogTimer) {
+        clearInterval(this._watchdogTimer);
+        this._watchdogTimer = null;
+      }
       if (this._pollTimer) {
         clearInterval(this._pollTimer);
         this._pollTimer = null;
@@ -668,6 +715,10 @@
     async disconnect() {
       this._manual = true;
       clearTimeout(this._timer);
+      if (this._watchdogTimer) {
+        clearInterval(this._watchdogTimer);
+        this._watchdogTimer = null;
+      }
       if (this._pollTimer) {
         clearInterval(this._pollTimer);
         this._pollTimer = null;

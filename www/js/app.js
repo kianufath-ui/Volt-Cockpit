@@ -1398,73 +1398,22 @@
     const boot = document.getElementById('bootScreen');
     if (!boot) return;
 
-    const bar = document.getElementById('bootBarFill');
-    const statusText = document.getElementById('bootStatusText');
-    const percentText = document.getElementById('bootPercentText');
-    const diagCore = document.getElementById('diagCore');
-    const diagBms = document.getElementById('diagBms');
-    const diagSensors = document.getElementById('diagSensors');
-    const diagGnss = document.getElementById('diagGnss');
-    const speedEl = document.getElementById('speed');
-
     let finished = false;
     function finishBoot() {
       if (finished) return;
       finished = true;
-      if (bar) bar.style.width = '100%';
-      if (percentText) percentText.textContent = '100%';
-      if (statusText) statusText.textContent = t('bootReady');
-      [diagCore, diagBms, diagSensors, diagGnss].forEach((el) => {
-        if (el) el.classList.add('active', 'done');
-      });
-      // Reset gauge sweep if still 88
-      if (speedEl && speedEl.textContent === '88') speedEl.textContent = '0';
-
+      boot.classList.add('boot-done');
       setTimeout(() => {
-        boot.classList.add('boot-done');
-        setTimeout(() => {
-          boot.classList.add('boot-hidden');
-        }, 450);
-      }, 250);
+        boot.classList.add('boot-hidden');
+      }, 500);
     }
 
     boot.addEventListener('click', finishBoot);
 
-    // Diagnostic sequence timeline
-    setTimeout(() => {
-      if (finished) return;
-      if (diagCore) diagCore.classList.add('active', 'done');
-      if (bar) bar.style.width = '28%';
-      if (percentText) percentText.textContent = '28%';
-    }, 200);
-
-    setTimeout(() => {
-      if (finished) return;
-      if (diagBms) diagBms.classList.add('active', 'done');
-      if (bar) bar.style.width = '55%';
-      if (percentText) percentText.textContent = '55%';
-    }, 450);
-
-    setTimeout(() => {
-      if (finished) return;
-      if (diagSensors) diagSensors.classList.add('active', 'done');
-      if (bar) bar.style.width = '80%';
-      if (percentText) percentText.textContent = '80%';
-      // Gauge cluster sweep test
-      if (speedEl && state.speed === 0) speedEl.textContent = '88';
-    }, 750);
-
-    setTimeout(() => {
-      if (finished) return;
-      if (diagGnss) diagGnss.classList.add('active', 'done');
-      if (bar) bar.style.width = '100%';
-      if (percentText) percentText.textContent = '100%';
-      if (statusText) statusText.textContent = t('bootReady');
-    }, 1050);
-
+    // Clean, minimalist automotive splash: auto fade out after 850ms
     setTimeout(() => {
       finishBoot();
-    }, 1300);
+    }, 850);
   }
 
   runBootSequence();
