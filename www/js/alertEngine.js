@@ -51,7 +51,7 @@
     speedLimitWarn: { enabled: true, threshold: 45, hysteresis: 3, cooldown: 15, sev: 'WARNING' }, // km/h, s
 
     // Connectivity & Device
-    bmsWatchdog: { enabled: true, timeoutSec: 4, sev: 'CRITICAL' },     // s
+    bmsWatchdog: { enabled: true, timeoutSec: 10, sev: 'CRITICAL' },    // s
     gpsWatchdog: { enabled: true, timeoutSec: 10, sev: 'WARNING' }      // s
   };
 
@@ -346,13 +346,14 @@
   function checkTelemetry(d) {
     if (!settings.enabled || !d) return;
 
-    // Must be valid numeric telemetry from real BMS
-    if (typeof d.packV !== 'number' || isNaN(d.packV) || d.packV <= 0) return;
+    try {
+      // Must be valid numeric telemetry from real BMS
+      if (typeof d.packV !== 'number' || isNaN(d.packV) || d.packV <= 0) return;
 
-    // Mark telemetry packet received (watchdog heartbeat)
-    lastBmsPacketTime = Date.now();
-    bmsWasConnected = true;
-    resolveAlert('BMS_COMM_LOST');
+      // Mark telemetry packet received (watchdog heartbeat)
+      lastBmsPacketTime = Date.now();
+      bmsWasConnected = true;
+      resolveAlert('BMS_COMM_LOST');
 
     // 1. SOC Protection (Critical has precedence over Low)
     if (typeof d.soc === 'number' && !isNaN(d.soc)) {
@@ -586,6 +587,9 @@
     } else {
       resolveAlert('BMS_HW_ERROR');
     }
+    } catch (err) {
+      console.warn('[AlertEngine] checkTelemetry error:', err);
+    }
   }
 
   /* ---------------- Speed Monitoring ---------------- */
@@ -663,15 +667,15 @@
 
       // BMS Watchdog
       if (settings.bmsWatchdog.enabled && bmsWasConnected) {
-        const timeoutMs = (settings.bmsWatchdog.timeoutSec || 4) * 1000;
-        if (now - lastBmsPacketTime > timeoutMs) {
+        const timeoutMs = (settings.bmsWatchdog.timeoutSec || 10) * 1000;
+        if (lastBmsPacketTime > 0 && (now - lastBmsPacketTime > timeoutMs)) {
           triggerAlert({
             key: 'BMS_COMM_LOST',
             title: 'BMS Telemetry Lost',
             category: 'DEVICE',
             severity: 'CRITICAL',
-            valStr: 'No packets for > ' + settings.bmsWatchdog.timeoutSec + 's',
-            thresholdStr: 'Watchdog Timeout: ' + settings.bmsWatchdog.timeoutSec + 's',
+            valStr: 'No packets for > ' + (settings.bmsWatchdog.timeoutSec || 10) + 's',
+            thresholdStr: 'Watchdog Timeout: ' + (settings.bmsWatchdog.timeoutSec || 10) + 's',
             rawValue: (now - lastBmsPacketTime) / 1000,
             cooldownSec: 15
           });

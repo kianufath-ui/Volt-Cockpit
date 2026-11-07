@@ -7,7 +7,7 @@
   const fmt = (v, d) => (isFinite(v) ? Number(v).toFixed(d == null ? 1 : d) : '--');
 
   const MAX_KMH = 90;
-  const SPEED_MULT = 1.5;   // penggali tampilan speedometer (perkalian), 0 tetap 0
+  const SPEED_MULT = 1.4;   // penggali tampilan speedometer (perkalian), 0 tetap 0
   const GAUGE_LEN = 414.69;
   const SOC_LEN = 157.08; // semicircle path length (r=50)
   const SPEED_STOP = 1.0;   // m/s (~3.6 km/h) — below this the bike counts as stopped
@@ -919,136 +919,149 @@
   }
 
   function renderTelemetry(d) {
+    if (!d) return;
     state.bmsData = d;
-    if (window.AlertEngine) window.AlertEngine.checkTelemetry(d);
-    $('#vPack').textContent = fmt(d.packV, 2);
-    $('#vCurrent').textContent = (d.current >= 0 ? '+' : '') + fmt(d.current, 2);
-    $('#vPower').textContent = (d.power >= 0 ? '+' : '') + fmt(d.power, 0);
-    $('#vSoc').textContent = d.soc;
-    $('#vSoh').textContent = d.soh;
-    $('#vRemain').textContent = fmt(d.remainAh, 2);
-    $('#vNominal').textContent = fmt(d.nominalAh, 1);
-    $('#vCycles').textContent = d.cycles;
-    $('#vMosTemp').textContent = fmt(d.mosTemp, 1);
-    $('#vTemps').textContent = fmt(d.t1, 1) + ' / ' + fmt(d.t2, 1);
-    $('#vDelta').textContent = fmt(d.delta * 1000, 0);
-    $('#vBalance').textContent = fmt(d.balanceA, 2);
-    $('#vErrors').textContent = '0x' + d.errors.toString(16).toUpperCase().padStart(8, '0');
-    $('#vMos').textContent = (d.chargeMos ? 'CHG' : '—') + ' / ' + (d.dischargeMos ? 'DIS' : '—');
 
-    const socEl = $('#hudSoc'); if (socEl) socEl.textContent = d.soc + '%';
-    const vEl = $('#hudV'); if (vEl) vEl.textContent = fmt(d.packV, 1);
-    const aEl = $('#hudA');
-    if (aEl) {
-      if (d.current < -0.1) aEl.textContent = fmt(d.current, 1) + ' A';
-      else if (d.current > 0.1) aEl.textContent = '+' + fmt(d.current, 1) + ' A';
-      else aEl.textContent = '0.0 A';
-    }
-    const wEl = $('#hudW');
-    if (wEl) {
-      if (d.power < -5) wEl.textContent = fmt(d.power, 0) + ' W';
-      else if (d.power > 5) wEl.textContent = '+' + fmt(d.power, 0) + ' W';
-      else wEl.textContent = '0 W';
-    }
-
-    // Telemetry Cockpit (No Map) live updates
-    const telV = $('#telV'); if (telV) telV.textContent = fmt(d.packV, 1);
-    const telA = $('#telA');
-    if (telA) {
-      if (d.current < -0.1) telA.textContent = fmt(d.current, 1);
-      else if (d.current > 0.1) telA.textContent = '+' + fmt(d.current, 1);
-      else telA.textContent = '0.0';
-    }
-    const telW = $('#telW');
-    if (telW) {
-      if (d.power < -5) telW.textContent = fmt(d.power, 0);
-      else if (d.power > 5) telW.textContent = '+' + fmt(d.power, 0);
-      else telW.textContent = '0';
-    }
-    const telFlow = $('#telFlow');
-    if (telFlow) {
-      if (d.power < -10 || d.current < -0.3) {
-        telFlow.textContent = 'DISCHARGE';
-        telFlow.className = 'tc-tag discharge';
-      } else if (d.power > 10 || d.current > 0.3) {
-        telFlow.textContent = '⚡ CHARGING';
-        telFlow.className = 'tc-tag charging';
-      } else {
-        telFlow.textContent = 'STANDBY';
-        telFlow.className = 'tc-tag';
+    try {
+      if (window.AlertEngine && typeof window.AlertEngine.checkTelemetry === 'function') {
+        window.AlertEngine.checkTelemetry(d);
       }
+    } catch (alertErr) {
+      console.warn('[AlertEngine] checkTelemetry error:', alertErr);
     }
-    const absW = Math.abs(d.power || 0);
-    if (absW > state.peakPower) state.peakPower = absW;
-    const telPeak = $('#telPeak'); if (telPeak) telPeak.textContent = 'PEAK ' + Math.round(state.peakPower) + ' W';
-    const telPBar = $('#telPowerBar'); if (telPBar) telPBar.style.width = clamp((absW / 1500) * 100, 2, 100) + '%';
-    const telSoc = $('#telSoc'); if (telSoc) telSoc.textContent = d.soc;
-    const telSocFill = $('#telSocFill'); if (telSocFill) telSocFill.style.width = clamp(d.soc, 0, 100) + '%';
-    const telSoh = $('#telSoh'); if (telSoh) telSoh.textContent = 'SOH ' + d.soh + '%';
-    const telDelta = $('#telDelta'); if (telDelta) telDelta.textContent = fmt(d.delta * 1000, 0);
-    const telBalStatus = $('#telBalStatus');
-    if (telBalStatus) telBalStatus.textContent = Math.abs(d.balanceA) > 0.05 ? 'BAL ' + fmt(Math.abs(d.balanceA), 1) + 'A' : 'BAL OFF';
-    const telCellSpread = $('#telCellSpread');
-    if (telCellSpread) telCellSpread.textContent = fmt(d.minV, 2) + ' / ' + fmt(d.maxV, 2) + ' V';
-    const telMosTemp = $('#telMosTemp'); if (telMosTemp) telMosTemp.textContent = fmt(d.mosTemp, 0);
-    const telBattTemp = $('#telBattTemp'); if (telBattTemp) telBattTemp.textContent = fmt(d.t1, 0) + ' / ' + fmt(d.t2, 0);
-    const telCap = $('#telCap'); if (telCap) telCap.textContent = fmt(d.remainAh, 1) + ' / ' + fmt(d.nominalAh, 0);
-    const telCycles = $('#telCycles'); if (telCycles) telCycles.textContent = String(d.cycles != null ? d.cycles : '--');
-    const rkVal = rangeKm(d);
-    const telRange = $('#telRange'); if (telRange) telRange.textContent = rkVal == null ? '-- km' : Math.max(0, Math.round(rkVal)) + ' km';
-    const telBmsStatus = $('#telBmsStatus');
-    if (telBmsStatus) {
-      const bad = d.errors !== 0 || d.delta > 0.15 || (d.t1 > 60) || (d.mosTemp > 80);
-      const warn = !bad && (d.delta > 0.08 || d.t1 > 45 || d.soc <= 15);
-      telBmsStatus.textContent = bad ? 'CHECK' : warn ? 'WASPADA' : 'NORMAL';
-      telBmsStatus.style.color = bad ? '#ff5d5d' : warn ? '#ffb703' : '#38f2a0';
-    }
-    const chgEl = $('#hudCharge'); if (chgEl) {
-      if (d.power < -10 || d.current < -0.3) {
-        chgEl.textContent = 'DISCHARGE';
-        chgEl.className = 'charge-indicator discharge';
-      } else if (d.power > 10 || d.current > 0.3) {
-        chgEl.textContent = '⚡ CHARGING';
-        chgEl.className = 'charge-indicator charging';
-      } else {
-        chgEl.textContent = 'STANDBY';
-        chgEl.className = 'charge-indicator';
+
+    try {
+      const vPack = $('#vPack'); if (vPack) vPack.textContent = fmt(d.packV, 2);
+      const vCurrent = $('#vCurrent'); if (vCurrent) vCurrent.textContent = (d.current >= 0 ? '+' : '') + fmt(d.current, 2);
+      const vPower = $('#vPower'); if (vPower) vPower.textContent = (d.power >= 0 ? '+' : '') + fmt(d.power, 0);
+      const vSoc = $('#vSoc'); if (vSoc) vSoc.textContent = d.soc;
+      const vSoh = $('#vSoh'); if (vSoh) vSoh.textContent = d.soh;
+      const vRemain = $('#vRemain'); if (vRemain) vRemain.textContent = fmt(d.remainAh, 2);
+      const vNominal = $('#vNominal'); if (vNominal) vNominal.textContent = fmt(d.nominalAh, 1);
+      const vCycles = $('#vCycles'); if (vCycles) vCycles.textContent = d.cycles;
+      const vMosTemp = $('#vMosTemp'); if (vMosTemp) vMosTemp.textContent = fmt(d.mosTemp, 1);
+      const vTemps = $('#vTemps'); if (vTemps) vTemps.textContent = fmt(d.t1, 1) + ' / ' + fmt(d.t2, 1);
+      const vDelta = $('#vDelta'); if (vDelta) vDelta.textContent = fmt(d.delta * 1000, 0);
+      const vBalance = $('#vBalance'); if (vBalance) vBalance.textContent = fmt(d.balanceA, 2);
+      const vErrors = $('#vErrors'); if (vErrors) vErrors.textContent = '0x' + (d.errors || 0).toString(16).toUpperCase().padStart(8, '0');
+      const vMos = $('#vMos'); if (vMos) vMos.textContent = (d.chargeMos ? 'CHG' : '—') + ' / ' + (d.dischargeMos ? 'DIS' : '—');
+
+      const socEl = $('#hudSoc'); if (socEl) socEl.textContent = d.soc + '%';
+      const vEl = $('#hudV'); if (vEl) vEl.textContent = fmt(d.packV, 1);
+      const aEl = $('#hudA');
+      if (aEl) {
+        if (d.current < -0.1) aEl.textContent = fmt(d.current, 1) + ' A';
+        else if (d.current > 0.1) aEl.textContent = '+' + fmt(d.current, 1) + ' A';
+        else aEl.textContent = '0.0 A';
       }
+      const wEl = $('#hudW');
+      if (wEl) {
+        if (d.power < -5) wEl.textContent = fmt(d.power, 0) + ' W';
+        else if (d.power > 5) wEl.textContent = '+' + fmt(d.power, 0) + ' W';
+        else wEl.textContent = '0 W';
+      }
+
+      // Telemetry Cockpit (No Map) live updates
+      const telV = $('#telV'); if (telV) telV.textContent = fmt(d.packV, 1);
+      const telA = $('#telA');
+      if (telA) {
+        if (d.current < -0.1) telA.textContent = fmt(d.current, 1);
+        else if (d.current > 0.1) telA.textContent = '+' + fmt(d.current, 1);
+        else telA.textContent = '0.0';
+      }
+      const telW = $('#telW');
+      if (telW) {
+        if (d.power < -5) telW.textContent = fmt(d.power, 0);
+        else if (d.power > 5) telW.textContent = '+' + fmt(d.power, 0);
+        else telW.textContent = '0';
+      }
+      const telFlow = $('#telFlow');
+      if (telFlow) {
+        if (d.power < -10 || d.current < -0.3) {
+          telFlow.textContent = 'DISCHARGE';
+          telFlow.className = 'tc-tag discharge';
+        } else if (d.power > 10 || d.current > 0.3) {
+          telFlow.textContent = '⚡ CHARGING';
+          telFlow.className = 'tc-tag charging';
+        } else {
+          telFlow.textContent = 'STANDBY';
+          telFlow.className = 'tc-tag';
+        }
+      }
+      const absW = Math.abs(d.power || 0);
+      if (absW > state.peakPower) state.peakPower = absW;
+      const telPeak = $('#telPeak'); if (telPeak) telPeak.textContent = 'PEAK ' + Math.round(state.peakPower) + ' W';
+      const telPBar = $('#telPowerBar'); if (telPBar) telPBar.style.width = clamp((absW / 1500) * 100, 2, 100) + '%';
+      const telSoc = $('#telSoc'); if (telSoc) telSoc.textContent = d.soc;
+      const telSocFill = $('#telSocFill'); if (telSocFill) telSocFill.style.width = clamp(d.soc, 0, 100) + '%';
+      const telSoh = $('#telSoh'); if (telSoh) telSoh.textContent = 'SOH ' + d.soh + '%';
+      const telDelta = $('#telDelta'); if (telDelta) telDelta.textContent = fmt(d.delta * 1000, 0);
+      const telBalStatus = $('#telBalStatus');
+      if (telBalStatus) telBalStatus.textContent = Math.abs(d.balanceA) > 0.05 ? 'BAL ' + fmt(Math.abs(d.balanceA), 1) + 'A' : 'BAL OFF';
+      const telCellSpread = $('#telCellSpread');
+      if (telCellSpread) telCellSpread.textContent = fmt(d.minV, 2) + ' / ' + fmt(d.maxV, 2) + ' V';
+      const telMosTemp = $('#telMosTemp'); if (telMosTemp) telMosTemp.textContent = fmt(d.mosTemp, 0);
+      const telBattTemp = $('#telBattTemp'); if (telBattTemp) telBattTemp.textContent = fmt(d.t1, 0) + ' / ' + fmt(d.t2, 0);
+      const telCap = $('#telCap'); if (telCap) telCap.textContent = fmt(d.remainAh, 1) + ' / ' + fmt(d.nominalAh, 0);
+      const telCycles = $('#telCycles'); if (telCycles) telCycles.textContent = String(d.cycles != null ? d.cycles : '--');
+      const rkVal = rangeKm(d);
+      const telRange = $('#telRange'); if (telRange) telRange.textContent = rkVal == null ? '-- km' : Math.max(0, Math.round(rkVal)) + ' km';
+      const telBmsStatus = $('#telBmsStatus');
+      if (telBmsStatus) {
+        const bad = d.errors !== 0 || d.delta > 0.15 || (d.t1 > 60) || (d.mosTemp > 80);
+        const warn = !bad && (d.delta > 0.08 || d.t1 > 45 || d.soc <= 15);
+        telBmsStatus.textContent = bad ? 'CHECK' : warn ? 'WASPADA' : 'NORMAL';
+        telBmsStatus.style.color = bad ? '#ff5d5d' : warn ? '#ffb703' : '#38f2a0';
+      }
+      const chgEl = $('#hudCharge'); if (chgEl) {
+        if (d.power < -10 || d.current < -0.3) {
+          chgEl.textContent = 'DISCHARGE';
+          chgEl.className = 'charge-indicator discharge';
+        } else if (d.power > 10 || d.current > 0.3) {
+          chgEl.textContent = '⚡ CHARGING';
+          chgEl.className = 'charge-indicator charging';
+        } else {
+          chgEl.textContent = 'STANDBY';
+          chgEl.className = 'charge-indicator';
+        }
+      }
+      const tEl = $('#hudTemp'); if (tEl) tEl.textContent = fmt(d.t1, 0) + ' °C';
+
+      const battFill = $('#battFill');
+      if (battFill) battFill.style.width = clamp(d.soc, 0, 100) + '%';
+
+      // STATUS: OK / CHECK dari error + delta + suhu
+      const stState = $('#statusState');
+      if (stState) {
+        const bad = d.errors !== 0 || d.delta > 0.15 || (d.t1 > 60) || (d.mosTemp > 80);
+        const warn = !bad && (d.delta > 0.08 || d.t1 > 45 || d.soc <= 15);
+        stState.textContent = bad ? 'CHECK' : warn ? 'WASPADA' : 'NORMAL';
+        stState.className = bad ? 'teal bad' : warn ? 'teal warn' : 'teal';
+      }
+
+      // grafik power: simpan tiap telemetri (~2x/detik), gambar ulang
+      state.powerHist.push({ t: d.ts || Date.now(), w: d.power });
+      if (state.powerHist.length > 140) state.powerHist.shift();
+      drawPowerGraph();
+
+      const arc = $('#socArc');
+      if (arc && arc.style) {
+        arc.style.strokeDashoffset = String(SOC_LEN * (1 - clamp(d.soc, 0, 100) / 100));
+        arc.style.stroke = d.soc <= 15 ? '#ff5d5d' : d.soc <= 30 ? '#ffb703' : '#35b6f0';
+      }
+
+      const rk = rangeKm(d);
+      const rangeEl = $('#rangeBig');
+      if (rangeEl) rangeEl.textContent = rk == null ? '-- km' : Math.max(0, Math.round(rk)) + ' km';
+      const rangeArc = $('#rangeArc');
+      if (rangeArc && rangeArc.style) {
+        rangeArc.style.strokeDashoffset = String(SOC_LEN * (1 - clamp(rk || 0, 0, 100) / 100));
+      }
+
+      renderCells(d.cells, d.minV, d.maxV);
+    } catch (domErr) {
+      console.warn('[App] renderTelemetry DOM error:', domErr);
     }
-    const tEl = $('#hudTemp'); if (tEl) tEl.textContent = fmt(d.t1, 0) + ' °C';
-
-    const battFill = $('#battFill');
-    if (battFill) battFill.style.width = clamp(d.soc, 0, 100) + '%';
-
-    // STATUS: OK / CHECK dari error + delta + suhu
-    const stState = $('#statusState');
-    if (stState) {
-      const bad = d.errors !== 0 || d.delta > 0.15 || (d.t1 > 60) || (d.mosTemp > 80);
-      const warn = !bad && (d.delta > 0.08 || d.t1 > 45 || d.soc <= 15);
-      stState.textContent = bad ? 'CHECK' : warn ? 'WASPADA' : 'NORMAL';
-      stState.className = bad ? 'teal bad' : warn ? 'teal warn' : 'teal';
-    }
-
-    // grafik power: simpan tiap telemetri (~2x/detik), gambar ulang
-    state.powerHist.push({ t: d.ts || Date.now(), w: d.power });
-    if (state.powerHist.length > 140) state.powerHist.shift();
-    drawPowerGraph();
-
-    const arc = $('#socArc');
-    if (arc && arc.style) {
-      arc.style.strokeDashoffset = String(SOC_LEN * (1 - clamp(d.soc, 0, 100) / 100));
-      arc.style.stroke = d.soc <= 15 ? '#ff5d5d' : d.soc <= 30 ? '#ffb703' : '#35b6f0';
-    }
-
-    const rk = rangeKm(d);
-    const rangeEl = $('#rangeBig');
-    if (rangeEl) rangeEl.textContent = rk == null ? '-- km' : Math.max(0, Math.round(rk)) + ' km';
-    const rangeArc = $('#rangeArc');
-    if (rangeArc && rangeArc.style) {
-      rangeArc.style.strokeDashoffset = String(SOC_LEN * (1 - clamp(rk || 0, 0, 100) / 100));
-    }
-
-    renderCells(d.cells, d.minV, d.maxV);
   }
 
   function renderCells(cells, minV, maxV) {

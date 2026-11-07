@@ -505,26 +505,30 @@
 
       this.connected = true;
       this._attempts = 0;
-      this.lastTelemetryTs = 0;
+      this.lastTelemetryTs = Date.now();
       this.onStatus('connected', this.capDeviceName);
 
-      // Trigger initial inquiry handshake with rolling sequence counter:
-      // Send 0x96 then 0x97
-      setTimeout(() => { this._send(0x96).catch(() => {}); }, 150);
-      setTimeout(() => { this._send(0x97).catch(() => {}); }, 500);
+      // Initial Handshake: Prompt BMS to start auto-streaming telemetry
+      setTimeout(() => { this._send(0x97).catch(() => {}); }, 300);
+      setTimeout(() => { this._send(0x96).catch(() => {}); }, 750);
 
-      // Telemetry Polling Loop (950ms):
-      // If auto-streaming is active (telemetry received in last 800ms), do nothing.
-      // If no telemetry packet arrived in last 800ms (BMS requires polling),
-      // send 0x96 with an incrementing sequence counter to fetch fresh telemetry!
+      // Keep-alive Watchdog:
+      // Once initiated with 0x97 & 0x96, JK-BMS streams Frame 0x02 continuously on its own (~1s interval).
+      // We do NOT poll aggressively, because sending continuous write packets interrupts and stalls the stream!
+      // Only if NO packet has been received for > 6 seconds do we send a gentle handshake ping to resume.
       if (this._pollTimer) clearInterval(this._pollTimer);
       this._pollTimer = setInterval(() => {
         if (this.connected) {
-          if (Date.now() - this.lastTelemetryTs >= 800) {
+          const idleMs = Date.now() - (this.lastTelemetryTs || 0);
+          if (idleMs >= 6000) {
+            console.log('[JKBMS] Keep-alive ping (idle ' + idleMs + 'ms)');
             this._send(0x96).catch(() => {});
+            setTimeout(() => {
+              if (this.connected) this._send(0x97).catch(() => {});
+            }, 350);
           }
         }
-      }, 950);
+      }, 3000);
     }
 
     requestDeviceInfo() {
@@ -670,60 +674,65 @@
     _append(chunk) {
       if (!chunk || !chunk.length) return;
 
-      // Preamble Flush: If incoming packet starts fresh with 55 AA EB 90,
-      // flush any leftover trailing padding or malformed fragments.
-      if (chunk.length >= 4 && chunk[0] === 0x55 && chunk[1] === 0xaa && chunk[2] === 0xeb && chunk[3] === 0x90) {
-        this.buf = new Uint8Array(0);
-      }
-
       const merged = new Uint8Array(this.buf.length + chunk.length);
       merged.set(this.buf, 0);
       merged.set(chunk, this.buf.length);
       this.buf = merged;
 
-      // Align with the first preamble sequence
-      let start = indexOfHeader(this.buf);
-      if (start > 0) {
-        this.buf = this.buf.slice(start);
-      } else if (start < 0) {
-        if (this.buf.length > 3) {
-          this.buf = this.buf.slice(this.buf.length - 3);
+      // Continuously extract complete frames
+      while (this.buf.length >= 300) {
+        let start = indexOfHeader(this.buf);
+        if (start < 0) {
+          // No header in buffer: discard everything except last 3 bytes (in case header is split across chunks)
+          this.buf = this.buf.slice(Math.max(0, this.buf.length - 3));
+          break;
         }
-        return;
-      }
+        if (start > 0) {
+          // Discard leading noise/padding before header
+          this.buf = this.buf.slice(start);
+          if (this.buf.length < 300) break;
+        }
 
-      // Check if a full frame has arrived
-      if (this.buf.length >= 300) {
         const raw = this.buf;
         let validFrame = null;
         let frameSize = 0;
 
+        // Check standard 300-byte frame
         if (crc8(raw, 299) === raw[299]) {
           validFrame = raw.subarray(0, 300);
           frameSize = 300;
         } else if (raw.length >= 320 && crc8(raw, 319) === raw[319]) {
+          // Check 320-byte extended frame
           validFrame = raw.subarray(0, 320);
           frameSize = 320;
         }
 
         if (validFrame) {
-          const parsed = parseFrame(validFrame);
-          if (parsed) {
-            if (parsed.type === 'telemetry') {
+          try {
+            const parsed = parseFrame(validFrame);
+            if (parsed) {
               this.lastTelemetryTs = Date.now();
+              this.onData(parsed);
             }
-            this.onData(parsed);
+          } catch (handlerErr) {
+            console.warn('[JKBMS] parse/onData error:', handlerErr);
           }
-          // Check if another header is already buffered after this frame
-          const next = indexOfHeader(this.buf.subarray(frameSize));
-          if (next >= 0) {
-            this.buf = this.buf.slice(frameSize + next);
+
+          // Advance past frameSize
+          this.buf = this.buf.slice(frameSize);
+        } else {
+          // Offset 0 had header preamble but failed CRC.
+          // Look for next preamble sequence to resynchronize stream
+          const nextHdr = indexOfHeader(this.buf.subarray(1));
+          if (nextHdr >= 0) {
+            this.buf = this.buf.slice(nextHdr + 1);
           } else {
-            this.buf = new Uint8Array(0);
+            // No next header yet; if buffer is too large without CRC match, drop stale data
+            if (this.buf.length > 640) {
+              this.buf = this.buf.slice(this.buf.length - 3);
+            }
+            break;
           }
-        } else if (this.buf.length > 380) {
-          // Safety drop if payload exceeds max size without valid CRC
-          this.buf = new Uint8Array(0);
         }
       }
     }

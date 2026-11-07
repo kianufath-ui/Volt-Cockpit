@@ -2489,8 +2489,6 @@ main { position: relative; flex: 1; min-height: 0; }
   color: #fff;
   transform: scale(0.92);
 }
-  color: #fff;
-}
 
 /* Back Button in Settings Subviews */
 .cp-btn-back {
