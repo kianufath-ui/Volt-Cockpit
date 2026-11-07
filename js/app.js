@@ -99,6 +99,9 @@
     if (state.info) renderInfo(state.info);
     if (state.settings) renderSettings(state.settings);
 
+    const histV = $('#cpAlertHistoryView');
+    if (histV && !histV.hidden) renderAlertHistory(currentHistFilter);
+
     if (!silent) toast(t('toastLangChanged'));
   }
 
@@ -433,6 +436,7 @@
       timeout: 20000,
     });
     state.gps.active = true;
+    if (window.AlertEngine) window.AlertEngine.setGpsTracking(true);
     syncGpsButton();
     requestWakeLock();
     toast('GPS aktif — cari sinyal...');
@@ -444,6 +448,7 @@
       state.gps.watchId = null;
     }
     state.gps.active = false;
+    if (window.AlertEngine) window.AlertEngine.setGpsTracking(false);
     state.gps.speed = 0;
     state.gps.moving = false;
     state.gps.history = [];
@@ -481,6 +486,7 @@
       state.gps.watchId = null;
     }
     state.gps.active = false;
+    if (window.AlertEngine) window.AlertEngine.setGpsTracking(false);
     syncGpsButton();
     releaseWakeLock();
   }
@@ -537,6 +543,10 @@
 
     let kmh = state.gps.speed * 3.6;
     if (kmh < 1.5) kmh = 0;
+    if (window.AlertEngine) {
+      window.AlertEngine.onGpsFix(pos.timestamp || Date.now());
+      window.AlertEngine.checkSpeed(kmh);
+    }
     const moving = state.gps.speed >= SPEED_STOP * 0.7;
 
     // Only update the compass while moving; otherwise the arrow spins from noise.
@@ -589,6 +599,7 @@
   function onBmsStatus(status, text) {
     const prevStatus = state.bmsStatus;
     state.bmsStatus = status;
+    if (window.AlertEngine) window.AlertEngine.onBmsStatus(status);
     const displayName = text || localStorage.getItem('volt_bms_device_name') || 'Volt BMS';
     if (status === 'connected') {
       setPill('bms', 'on', 'BMS');
@@ -909,6 +920,7 @@
 
   function renderTelemetry(d) {
     state.bmsData = d;
+    if (window.AlertEngine) window.AlertEngine.checkTelemetry(d);
     $('#vPack').textContent = fmt(d.packV, 2);
     $('#vCurrent').textContent = (d.current >= 0 ? '+' : '') + fmt(d.current, 2);
     $('#vPower').textContent = (d.power >= 0 ? '+' : '') + fmt(d.power, 0);
@@ -1205,11 +1217,239 @@
     dots.forEach((d, i) => d.classList.toggle('active', (mode === 'sports') === (i === 0)));
   }
 
+  /* ---------------- Protection & Alerts UI Management ---------------- */
+  let currentHistFilter = 'ALL';
+  let hudAlertTimer = null;
+
+  function showCpView(viewName) {
+    const mainV = $('#cpMainView');
+    const setV = $('#cpAlertSettingsView');
+    const histV = $('#cpAlertHistoryView');
+    if (mainV) mainV.hidden = (viewName !== 'main');
+    if (setV) setV.hidden = (viewName !== 'settings');
+    if (histV) histV.hidden = (viewName !== 'history');
+
+    if (viewName === 'settings') populateAlertSettings();
+    if (viewName === 'history') renderAlertHistory(currentHistFilter);
+  }
+
+  function populateAlertSettings() {
+    if (!window.AlertEngine) return;
+    const cfg = window.AlertEngine.getSettings();
+
+    // Battery
+    const cl = $('#cfgLowSoc'); if (cl) cl.value = cfg.socLowWarn.threshold;
+    const chkL = $('#chkLowSoc'); if (chkL) chkL.checked = cfg.socLowWarn.enabled;
+
+    const cc = $('#cfgCritSoc'); if (cc) cc.value = cfg.socCritWarn.threshold;
+    const chkC = $('#chkCritSoc'); if (chkC) chkC.checked = cfg.socCritWarn.enabled;
+
+    const cd = $('#cfgDischargeA'); if (cd) cd.value = cfg.overcurrentDischarge.threshold;
+    const chkD = $('#chkDischargeA'); if (chkD) chkD.checked = cfg.overcurrentDischarge.enabled;
+
+    const cchg = $('#cfgChargeA'); if (cchg) cchg.value = cfg.overcurrentCharge.threshold;
+    const chkChg = $('#chkChargeA'); if (chkChg) chkChg.checked = cfg.overcurrentCharge.enabled;
+
+    // Cells
+    const cch = $('#cfgCellHighV'); if (cch) cch.value = cfg.cellHighWarn.threshold;
+    const chkCh = $('#chkCellHighV'); if (chkCh) chkCh.checked = cfg.cellHighWarn.enabled;
+
+    const ccl = $('#cfgCellLowV'); if (ccl) ccl.value = cfg.cellLowWarn.threshold;
+    const chkCl = $('#chkCellLowV'); if (chkCl) chkCl.checked = cfg.cellLowWarn.enabled;
+
+    const cdw = $('#cfgDeltaWarn'); if (cdw) cdw.value = cfg.cellImbalanceWarn.threshold;
+    const chkDw = $('#chkDeltaWarn'); if (chkDw) chkDw.checked = cfg.cellImbalanceWarn.enabled;
+
+    const cdc = $('#cfgDeltaCrit'); if (cdc) cdc.value = cfg.cellImbalanceCrit.threshold;
+    const chkDc = $('#chkDeltaCrit'); if (chkDc) chkDc.checked = cfg.cellImbalanceCrit.enabled;
+
+    // Temperature
+    const cpht = $('#cfgPackHighT'); if (cpht) cpht.value = cfg.packHighTempWarn.threshold;
+    const chkPht = $('#chkPackHighT'); if (chkPht) chkPht.checked = cfg.packHighTempWarn.enabled;
+
+    const cpct = $('#cfgPackCritT'); if (cpct) cpct.value = cfg.packCritTempWarn.threshold;
+    const chkPct = $('#chkPackCritT'); if (chkPct) chkPct.checked = cfg.packCritTempWarn.enabled;
+
+    const cplt = $('#cfgPackLowT'); if (cplt) cplt.value = cfg.packLowTempWarn.threshold;
+    const chkPlt = $('#chkPackLowT'); if (chkPlt) chkPlt.checked = cfg.packLowTempWarn.enabled;
+
+    const cmht = $('#cfgMosHighT'); if (cmht) cmht.value = cfg.mosHighTempWarn.threshold;
+    const chkMht = $('#chkMosHighT'); if (chkMht) chkMht.checked = cfg.mosHighTempWarn.enabled;
+
+    // Vehicle
+    const csl = $('#cfgSpeedLimit'); if (csl) csl.value = cfg.speedLimitWarn.threshold;
+    const chkSl = $('#chkSpeedLimit'); if (chkSl) chkSl.checked = cfg.speedLimitWarn.enabled;
+
+    const csh = $('#cfgSpeedHyst'); if (csh) csh.value = cfg.speedLimitWarn.hysteresis || 3;
+    const csc = $('#cfgSpeedCooldown'); if (csc) csc.value = cfg.speedLimitWarn.cooldown || 15;
+
+    // Device
+    const chkBms = $('#chkBmsWatchdog'); if (chkBms) chkBms.checked = cfg.bmsWatchdog.enabled;
+    const chkGps = $('#chkGpsWatchdog'); if (chkGps) chkGps.checked = cfg.gpsWatchdog.enabled;
+
+    // Notification channels
+    const chkHud = $('#chkNotifyHud'); if (chkHud) chkHud.checked = cfg.notifyHud;
+    const chkAud = $('#chkNotifyAudio'); if (chkAud) chkAud.checked = cfg.notifyAudio;
+    const chkVib = $('#chkNotifyVibrate'); if (chkVib) chkVib.checked = cfg.notifyVibrate;
+  }
+
+  function saveAlertSettingsFromForm() {
+    if (!window.AlertEngine) return;
+    const cur = window.AlertEngine.getSettings();
+
+    const numVal = (id, fallback) => {
+      const el = $('#' + id);
+      if (!el) return fallback;
+      const v = parseFloat(el.value);
+      return isNaN(v) ? fallback : v;
+    };
+    const boolVal = (id, fallback) => {
+      const el = $('#' + id);
+      return el ? el.checked : fallback;
+    };
+
+    const newSettings = {
+      notifyHud: boolVal('chkNotifyHud', cur.notifyHud),
+      notifyAudio: boolVal('chkNotifyAudio', cur.notifyAudio),
+      notifyVibrate: boolVal('chkNotifyVibrate', cur.notifyVibrate),
+
+      socLowWarn: { enabled: boolVal('chkLowSoc', true), threshold: numVal('cfgLowSoc', 20) },
+      socCritWarn: { enabled: boolVal('chkCritSoc', true), threshold: numVal('cfgCritSoc', 10) },
+      overcurrentDischarge: { enabled: boolVal('chkDischargeA', true), threshold: numVal('cfgDischargeA', 60) },
+      overcurrentCharge: { enabled: boolVal('chkChargeA', true), threshold: numVal('cfgChargeA', 15) },
+
+      cellHighWarn: { enabled: boolVal('chkCellHighV', true), threshold: numVal('cfgCellHighV', 4.22) },
+      cellLowWarn: { enabled: boolVal('chkCellLowV', true), threshold: numVal('cfgCellLowV', 2.95) },
+      cellImbalanceWarn: { enabled: boolVal('chkDeltaWarn', true), threshold: numVal('cfgDeltaWarn', 50) },
+      cellImbalanceCrit: { enabled: boolVal('chkDeltaCrit', true), threshold: numVal('cfgDeltaCrit', 100) },
+
+      packHighTempWarn: { enabled: boolVal('chkPackHighT', true), threshold: numVal('cfgPackHighT', 55) },
+      packCritTempWarn: { enabled: boolVal('chkPackCritT', true), threshold: numVal('cfgPackCritT', 65) },
+      packLowTempWarn: { enabled: boolVal('chkPackLowT', true), threshold: numVal('cfgPackLowT', 2) },
+      mosHighTempWarn: { enabled: boolVal('chkMosHighT', true), threshold: numVal('cfgMosHighT', 75) },
+
+      speedLimitWarn: {
+        enabled: boolVal('chkSpeedLimit', true),
+        threshold: numVal('cfgSpeedLimit', 45),
+        hysteresis: numVal('cfgSpeedHyst', 3),
+        cooldown: numVal('cfgSpeedCooldown', 15)
+      },
+
+      bmsWatchdog: { enabled: boolVal('chkBmsWatchdog', true), timeoutSec: cur.bmsWatchdog.timeoutSec || 4 },
+      gpsWatchdog: { enabled: boolVal('chkGpsWatchdog', true), timeoutSec: cur.gpsWatchdog.timeoutSec || 10 }
+    };
+
+    window.AlertEngine.saveSettings(newSettings);
+  }
+
+  function renderAlertHistory(filter) {
+    currentHistFilter = filter || 'ALL';
+    const container = $('#alertHistoryList');
+    if (!container || !window.AlertEngine) return;
+
+    const items = window.AlertEngine.getHistory(currentHistFilter);
+    if (!items || !items.length) {
+      container.innerHTML = `<div class="alert-hist-empty">${t('noAlertsRecorded') || 'No alerts recorded'}</div>`;
+      return;
+    }
+
+    const fmtTime = (ts) => {
+      const d = new Date(ts);
+      const h = String(d.getHours()).padStart(2, '0');
+      const m = String(d.getMinutes()).padStart(2, '0');
+      const s = String(d.getSeconds()).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    };
+
+    let html = '';
+    items.forEach((item) => {
+      const sevClass = item.severity === 'CRITICAL' ? 'ahi-crit' : item.severity === 'WARNING' ? 'ahi-warn' : 'ahi-info';
+      const isAct = item.status === 'ACTIVE';
+      const statusText = isAct ? (t('statusActive') || 'ACTIVE') : (t('statusResolved') || 'RESOLVED');
+      const statusClass = isAct ? 'active' : 'resolved';
+
+      html += `
+        <div class="alert-hist-item">
+          <div class="ahi-top">
+            <span class="ahi-title">${item.title}</span>
+            <span class="ahi-badge ${sevClass}">${item.severity}</span>
+          </div>
+          <div class="ahi-bottom">
+            <span class="ahi-val">${item.valStr}</span>
+            <span>${fmtTime(item.timestamp)} · <span class="ahi-status ${statusClass}">${statusText}</span></span>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  }
+
+  function updateAlertIndicators() {
+    if (!window.AlertEngine) return;
+    const activeCount = window.AlertEngine.getActiveCount();
+    const badge = $('#alertHistoryBadge');
+    if (badge) {
+      badge.textContent = activeCount;
+      badge.classList.toggle('active', activeCount > 0);
+      if (activeCount > 0) {
+        badge.style.color = '#ff5252';
+        badge.style.background = 'rgba(255, 82, 82, 0.15)';
+      } else {
+        badge.style.color = '';
+        badge.style.background = '';
+      }
+    }
+
+    const dot = $('#protStatusDot');
+    if (dot) {
+      if (activeCount > 0) {
+        dot.className = 'cp-dot err';
+      } else {
+        dot.className = 'cp-dot on';
+      }
+    }
+  }
+
+  function showHudAlert(alertItem) {
+    if (!window.AlertEngine) return;
+    const cfg = window.AlertEngine.getSettings();
+    if (!cfg.notifyHud) return;
+
+    const banner = $('#hudAlertBanner');
+    const title = $('#haTitle');
+    const sub = $('#haSub');
+    if (!banner || !title || !sub) return;
+
+    banner.className = 'hud-alert-banner ' + (alertItem.severity === 'CRITICAL' ? 'sev-crit' : alertItem.severity === 'WARNING' ? 'sev-warn' : 'sev-info');
+    title.textContent = alertItem.title;
+    sub.textContent = alertItem.valStr + (alertItem.thresholdStr ? ' · ' + alertItem.thresholdStr : '');
+
+    banner.hidden = false;
+
+    if (hudAlertTimer) clearTimeout(hudAlertTimer);
+    if (alertItem.severity !== 'CRITICAL') {
+      hudAlertTimer = setTimeout(() => {
+        banner.hidden = true;
+      }, 4500);
+    }
+  }
+
+  function hideHudAlert() {
+    const banner = $('#hudAlertBanner');
+    if (banner) banner.hidden = true;
+    if (hudAlertTimer) {
+      clearTimeout(hudAlertTimer);
+      hudAlertTimer = null;
+    }
+  }
+
   function bindUi() {
     const on = (sel, ev, fn) => { const el = $(sel); if (el) el.addEventListener(ev, fn); };
     const closeSettings = () => {
       const panel = $('#settingsPanel');
       if (panel) panel.classList.remove('cp-open');
+      showCpView('main');
     };
 
     on('#connectBtn', 'click', () => {
@@ -1266,6 +1506,63 @@
       });
     }
     on('#setCloseBtn', 'click', closeSettings);
+    $$('.close-settings-btn').forEach((btn) => btn.addEventListener('click', closeSettings));
+
+    // Protection & Alerts Navigation & Controls
+    on('#openAlertSettingsBtn', 'click', () => showCpView('settings'));
+    on('#backFromAlertSettingsBtn', 'click', () => showCpView('main'));
+    on('#openAlertHistoryBtn', 'click', () => showCpView('history'));
+    on('#backFromAlertHistoryBtn', 'click', () => showCpView('main'));
+
+    const cpAlertInputs = $$('#cpAlertSettingsView input');
+    cpAlertInputs.forEach((input) => {
+      input.addEventListener('change', saveAlertSettingsFromForm);
+      if (input.type === 'number') {
+        input.addEventListener('input', saveAlertSettingsFromForm);
+      }
+    });
+
+    on('#resetAlertDefaultsBtn', 'click', () => {
+      if (window.AlertEngine) {
+        window.AlertEngine.resetDefaults();
+        populateAlertSettings();
+        toast(t('resetDefaults') || 'Reset ke standar');
+      }
+    });
+
+    on('#clearAlertHistoryBtn', 'click', () => {
+      if (window.AlertEngine) {
+        window.AlertEngine.clearHistory();
+        renderAlertHistory(currentHistFilter);
+        toast(t('clearHistory') || 'Riwayat dihapus');
+      }
+    });
+
+    $$('.cp-filter-bar .cp-pill').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        $$('.cp-filter-bar .cp-pill').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderAlertHistory(btn.getAttribute('data-filter') || 'ALL');
+      });
+    });
+
+    on('#haCloseBtn', 'click', hideHudAlert);
+
+    if (window.AlertEngine) {
+      window.AlertEngine.addListener('alert', (alertItem) => {
+        showHudAlert(alertItem);
+        updateAlertIndicators();
+      });
+      window.AlertEngine.addListener('resolve', () => {
+        updateAlertIndicators();
+        if (!$('#cpAlertHistoryView').hidden) renderAlertHistory(currentHistFilter);
+      });
+      window.AlertEngine.addListener('historyChange', () => {
+        updateAlertIndicators();
+        if (!$('#cpAlertHistoryView').hidden) renderAlertHistory(currentHistFilter);
+      });
+      updateAlertIndicators();
+    }
     on('#setDetailBtn', 'click', () => switchView('bms'));
     on('#backBtn', 'click', () => switchView('ride'));
 

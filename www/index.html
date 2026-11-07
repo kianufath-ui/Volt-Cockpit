@@ -55,6 +55,16 @@
         <div id="map" class="bgmap"></div>
         <div class="dash-shade"></div>
 
+        <!-- HUD Alert Notification Banner -->
+        <div id="hudAlertBanner" class="hud-alert-banner" role="alert" hidden>
+          <span class="ha-dot" id="haDot"></span>
+          <div class="ha-text">
+            <b id="haTitle">ALERT</b>
+            <span id="haSub">Details</span>
+          </div>
+          <button id="haCloseBtn" class="ha-close" aria-label="Dismiss">&times;</button>
+        </div>
+
         <div class="dash-grid">
           <!-- KIRI: voltase + status -->
           <div class="d-left">
@@ -215,90 +225,347 @@
 
         <!-- control panel -->
         <div id="settingsPanel" class="cp">
-          <div class="cp-header">
-            <span class="cp-title" data-i18n="vehicleControls">Vehicle Controls</span>
-            <div class="cp-hr">
-              <span id="demoBadge" class="cp-demo" hidden>DEMO</span>
-              <button id="themeBtnHeader" class="cp-btn-icon" title="Toggle Theme (Light / Dark)"><svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></button>
-              <button id="setCloseBtn" class="cp-x" title="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+          <!-- MAIN VIEW: Vehicle Controls -->
+          <div id="cpMainView">
+            <div class="cp-header">
+              <span class="cp-title" data-i18n="vehicleControls">Vehicle Controls</span>
+              <div class="cp-hr">
+                <span id="demoBadge" class="cp-demo" hidden>DEMO</span>
+                <button id="themeBtnHeader" class="cp-btn-icon" title="Toggle Theme (Light / Dark)"><svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></button>
+                <button id="setCloseBtn" class="cp-x close-settings-btn" title="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="displayLayout">Display & Layout</div>
+              <button id="layoutToggleBtn" class="cp-row cp-act">
+                <svg class="cp-ic" id="layoutIcon" viewBox="0 0 24 24"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+                <span class="cp-rl" data-i18n="dashboardMode">Dashboard Mode</span>
+                <span class="cp-tag" id="layoutTag">WITH MAP</span>
+              </button>
+              <button id="themeToggleBtn" class="cp-row cp-act">
+                <svg class="cp-ic" id="themeIcon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+                <span class="cp-rl" data-i18n="appearance">Appearance</span>
+                <span class="cp-tag" id="themeTag">DARK</span>
+              </button>
+              <button id="langToggleBtn" class="cp-row cp-act">
+                <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <span class="cp-rl" data-i18n="language">Language</span>
+                <span class="cp-tag" id="langTag">EN</span>
+              </button>
+            </div>
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="battery">Battery</div>
+              <div class="cp-row">
+                <svg class="cp-ic" viewBox="0 0 24 24"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>
+                <span class="cp-rl brand-name" id="bmsPanelName">Volt BMS</span>
+                <span id="bmsPill" class="cp-dot off"></span>
+              </div>
+              <button id="bleSelectBtn" class="cp-row cp-act">
+                <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4M3.5 3.5a12 12 0 0 0 0 17M20.5 3.5a12 12 0 0 1 0 17"/></svg>
+                <span class="cp-rl" data-i18n="bleScanDevice">Select / Change Device</span>
+                <span class="cp-tag" id="bleScanTag">SCAN</span>
+              </button>
+              <button id="setDetailBtn" class="cp-row cp-act">
+                <svg class="cp-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="16" height="10" rx="1"/><path d="M22 11v2"/></svg>
+                <span class="cp-rl" data-i18n="bmsDetails">BMS Details</span>
+                <svg class="cp-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+              <button id="connectBtn" class="cp-row cp-act">
+                <svg class="cp-ic" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2v10"/></svg>
+                <span class="cp-rl" id="connectLabel" data-i18n="connectBms">Connect BMS</span>
+              </button>
+            </div>
+
+            <!-- PROTECTION & ALERTS ENTRY POINTS -->
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="protectionAndAlerts">Protection & Alerts</div>
+              <div class="cp-row">
+                <svg class="cp-ic" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span class="cp-rl" data-i18n="systemProtection">System Protection</span>
+                <span id="protStatusDot" class="cp-dot on" title="Active"></span>
+              </div>
+              <button id="openAlertSettingsBtn" class="cp-row cp-act">
+                <svg class="cp-ic" viewBox="0 0 24 24"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span class="cp-rl" data-i18n="protectionSettings">Protection Settings</span>
+                <svg class="cp-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+              <button id="openAlertHistoryBtn" class="cp-row cp-act">
+                <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="cp-rl" data-i18n="alertHistory">Alert History</span>
+                <span class="cp-tag" id="alertHistoryBadge">0</span>
+              </button>
+            </div>
+
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="gpsNavigation">GPS & Navigation</div>
+              <button id="gpsBtn" class="cp-row cp-act">
+                <svg class="cp-ic" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                <span class="cp-rl" id="gpsLabel" data-i18n="startTracking">Start tracking</span>
+                <span id="gpsPill" class="cp-dot off"></span>
+              </button>
+              <button id="followBtn" class="cp-row cp-act">
+                <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                <span class="cp-rl" data-i18n="followVehicle">Follow vehicle</span>
+                <span class="cp-tag" id="followTag">ON</span>
+              </button>
+            </div>
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="tripEfficiency">Trip & Efficiency</div>
+              <div class="cp-row">
+                <svg class="cp-ic" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span class="cp-rl" data-i18n="tripA">Trip A</span>
+                <span class="cp-val" id="tripAPanel">0.00 km</span>
+                <button id="resetTripABtn" class="cp-btn-mini" title="Reset Trip A">↺</button>
+              </div>
+              <div class="cp-row">
+                <svg class="cp-ic" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span class="cp-rl" data-i18n="tripB">Trip B</span>
+                <span class="cp-val" id="tripBPanel">0.00 km</span>
+                <button id="resetTripBBtn" class="cp-btn-mini" title="Reset Trip B">↺</button>
+              </div>
+              <div class="cp-row">
+                <svg class="cp-ic" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                <span class="cp-rl" data-i18n="avgConsumption">Avg Consumption</span>
+                <span class="cp-val" id="tripWhPanel">35 Wh/km</span>
+              </div>
+              <button id="setResetBtn" class="cp-row cp-act" style="margin-top:2px; color:#ff8f8f;">
+                <svg class="cp-ic" viewBox="0 0 24 24" style="stroke:#ff8f8f;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                <span class="cp-rl" data-i18n="resetAllTrips">Reset All Trips</span>
+              </button>
             </div>
           </div>
-          <div class="cp-sect">
-            <div class="cp-sh" data-i18n="displayLayout">Display & Layout</div>
-            <button id="layoutToggleBtn" class="cp-row cp-act">
-              <svg class="cp-ic" id="layoutIcon" viewBox="0 0 24 24"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
-              <span class="cp-rl" data-i18n="dashboardMode">Dashboard Mode</span>
-              <span class="cp-tag" id="layoutTag">WITH MAP</span>
-            </button>
-            <button id="themeToggleBtn" class="cp-row cp-act">
-              <svg class="cp-ic" id="themeIcon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-              <span class="cp-rl" data-i18n="appearance">Appearance</span>
-              <span class="cp-tag" id="themeTag">DARK</span>
-            </button>
-            <button id="langToggleBtn" class="cp-row cp-act">
-              <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-              <span class="cp-rl" data-i18n="language">Language</span>
-              <span class="cp-tag" id="langTag">EN</span>
-            </button>
+
+          <!-- SUBVIEW: Protection Settings -->
+          <div id="cpAlertSettingsView" hidden>
+            <div class="cp-header">
+              <button id="backFromAlertSettingsBtn" class="cp-btn-back" title="Back">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
+                <span data-i18n="back">Back</span>
+              </button>
+              <span class="cp-title" data-i18n="protectionSettings">Protection Settings</span>
+              <div class="cp-hr">
+                <button id="resetAlertDefaultsBtn" class="cp-btn-mini" title="Reset Defaults">↺</button>
+                <button class="cp-x close-settings-btn" title="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+
+            <!-- Battery Protection -->
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="batteryProtection">Battery Protection</div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="lowBatteryAlert">Low Battery Alert</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgLowSoc" class="cp-num-inp" min="5" max="50" step="1">
+                  <span class="cp-unit-tag">%</span>
+                  <input type="checkbox" id="chkLowSoc" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="critBatteryAlert">Critical Battery</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgCritSoc" class="cp-num-inp" min="1" max="30" step="1">
+                  <span class="cp-unit-tag">%</span>
+                  <input type="checkbox" id="chkCritSoc" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="overcurrentDischarge">Discharge Limit</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgDischargeA" class="cp-num-inp" min="10" max="300" step="5">
+                  <span class="cp-unit-tag">A</span>
+                  <input type="checkbox" id="chkDischargeA" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="overcurrentCharge">Charge Limit</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgChargeA" class="cp-num-inp" min="5" max="100" step="1">
+                  <span class="cp-unit-tag">A</span>
+                  <input type="checkbox" id="chkChargeA" class="cp-toggle-chk">
+                </div>
+              </div>
+            </div>
+
+            <!-- Cell Voltage Protection -->
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="cellVoltageProtection">Cell Voltage Protection</div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="highCellAlert">High Cell Voltage</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgCellHighV" class="cp-num-inp" min="3.4" max="4.5" step="0.01">
+                  <span class="cp-unit-tag">V</span>
+                  <input type="checkbox" id="chkCellHighV" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="lowCellAlert">Low Cell Voltage</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgCellLowV" class="cp-num-inp" min="2.0" max="3.5" step="0.01">
+                  <span class="cp-unit-tag">V</span>
+                  <input type="checkbox" id="chkCellLowV" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="cellDeltaWarn">Cell Imbalance</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgDeltaWarn" class="cp-num-inp" min="10" max="200" step="5">
+                  <span class="cp-unit-tag">mV</span>
+                  <input type="checkbox" id="chkDeltaWarn" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="cellDeltaCrit">Critical Imbalance</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgDeltaCrit" class="cp-num-inp" min="20" max="500" step="10">
+                  <span class="cp-unit-tag">mV</span>
+                  <input type="checkbox" id="chkDeltaCrit" class="cp-toggle-chk">
+                </div>
+              </div>
+            </div>
+
+            <!-- Temperature Protection -->
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="temperatureProtection">Temperature Protection</div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="packTempWarn">High Pack Temp</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgPackHighT" class="cp-num-inp" min="40" max="80" step="1">
+                  <span class="cp-unit-tag">°C</span>
+                  <input type="checkbox" id="chkPackHighT" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="packTempCrit">Critical Pack Temp</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgPackCritT" class="cp-num-inp" min="50" max="95" step="1">
+                  <span class="cp-unit-tag">°C</span>
+                  <input type="checkbox" id="chkPackCritT" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="packLowTempAlert">Low Pack Temp</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgPackLowT" class="cp-num-inp" min="-20" max="15" step="1">
+                  <span class="cp-unit-tag">°C</span>
+                  <input type="checkbox" id="chkPackLowT" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="mosTempWarn">MOSFET Overheat</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgMosHighT" class="cp-num-inp" min="50" max="100" step="1">
+                  <span class="cp-unit-tag">°C</span>
+                  <input type="checkbox" id="chkMosHighT" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-disabled">
+                <span class="cp-rl" data-i18n="motorTemp">Motor Temperature</span>
+                <span class="cp-tag" data-i18n="sensorUnavailable">UNAVAILABLE</span>
+              </div>
+              <div class="cp-row cp-disabled">
+                <span class="cp-rl" data-i18n="controllerTemp">Controller Temp</span>
+                <span class="cp-tag" data-i18n="sensorUnavailable">UNAVAILABLE</span>
+              </div>
+            </div>
+
+            <!-- Vehicle Speed Protection -->
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="vehicleProtection">Vehicle Protection</div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="speedLimitAlert">Speed Limit Alert</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgSpeedLimit" class="cp-num-inp" min="15" max="120" step="1">
+                  <span class="cp-unit-tag">km/h</span>
+                  <input type="checkbox" id="chkSpeedLimit" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="speedHysteresis">Speed Hysteresis</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgSpeedHyst" class="cp-num-inp" min="1" max="10" step="1">
+                  <span class="cp-unit-tag">km/h</span>
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="alertCooldown">Alert Cooldown</span>
+                <div class="cp-val-ctrl">
+                  <input type="number" id="cfgSpeedCooldown" class="cp-num-inp" min="5" max="60" step="1">
+                  <span class="cp-unit-tag">s</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Device & Connectivity -->
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="deviceProtection">Device Protection</div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="bmsWatchdog">BMS Link Loss</span>
+                <div class="cp-val-ctrl">
+                  <input type="checkbox" id="chkBmsWatchdog" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="gpsWatchdog">GPS Signal Loss</span>
+                <div class="cp-val-ctrl">
+                  <input type="checkbox" id="chkGpsWatchdog" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-disabled">
+                <span class="cp-rl" data-i18n="phoneThermal">Phone Thermal</span>
+                <span class="cp-tag" data-i18n="noOsSensor">NO OS SENSOR</span>
+              </div>
+            </div>
+
+            <!-- Notification Channels -->
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="notificationPreferences">Notification Channels</div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="inAppBanner">HUD Alert Banner</span>
+                <div class="cp-val-ctrl">
+                  <input type="checkbox" id="chkNotifyHud" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="audioChimes">Audio Chimes</span>
+                <div class="cp-val-ctrl">
+                  <input type="checkbox" id="chkNotifyAudio" class="cp-toggle-chk">
+                </div>
+              </div>
+              <div class="cp-row cp-row-input">
+                <span class="cp-rl" data-i18n="hapticVibrate">Haptic Vibration</span>
+                <div class="cp-val-ctrl">
+                  <input type="checkbox" id="chkNotifyVibrate" class="cp-toggle-chk">
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="cp-sect">
-            <div class="cp-sh" data-i18n="battery">Battery</div>
-            <div class="cp-row">
-              <svg class="cp-ic" viewBox="0 0 24 24"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>
-              <span class="cp-rl brand-name" id="bmsPanelName">Volt BMS</span>
-              <span id="bmsPill" class="cp-dot off"></span>
+
+          <!-- SUBVIEW: Alert History -->
+          <div id="cpAlertHistoryView" hidden>
+            <div class="cp-header">
+              <button id="backFromAlertHistoryBtn" class="cp-btn-back" title="Back">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
+                <span data-i18n="back">Back</span>
+              </button>
+              <span class="cp-title" data-i18n="alertHistory">Alert History</span>
+              <div class="cp-hr">
+                <button id="clearAlertHistoryBtn" class="cp-btn-mini" data-i18n="clearHistory">Clear</button>
+                <button class="cp-x close-settings-btn" title="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
             </div>
-            <button id="bleSelectBtn" class="cp-row cp-act">
-              <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4M3.5 3.5a12 12 0 0 0 0 17M20.5 3.5a12 12 0 0 1 0 17"/></svg>
-              <span class="cp-rl" data-i18n="bleScanDevice">Select / Change Device</span>
-              <span class="cp-tag" id="bleScanTag">SCAN</span>
-            </button>
-            <button id="setDetailBtn" class="cp-row cp-act">
-              <svg class="cp-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="16" height="10" rx="1"/><path d="M22 11v2"/></svg>
-              <span class="cp-rl" data-i18n="bmsDetails">BMS Details</span>
-              <svg class="cp-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
-            </button>
-            <button id="connectBtn" class="cp-row cp-act">
-              <svg class="cp-ic" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2v10"/></svg>
-              <span class="cp-rl" id="connectLabel" data-i18n="connectBms">Connect BMS</span>
-            </button>
-          </div>
-          <div class="cp-sect">
-            <div class="cp-sh" data-i18n="gpsNavigation">GPS & Navigation</div>
-            <button id="gpsBtn" class="cp-row cp-act">
-              <svg class="cp-ic" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-              <span class="cp-rl" id="gpsLabel" data-i18n="startTracking">Start tracking</span>
-              <span id="gpsPill" class="cp-dot off"></span>
-            </button>
-            <button id="followBtn" class="cp-row cp-act">
-              <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-              <span class="cp-rl" data-i18n="followVehicle">Follow vehicle</span>
-              <span class="cp-tag" id="followTag">ON</span>
-            </button>
-          </div>
-          <div class="cp-sect">
-            <div class="cp-sh" data-i18n="tripEfficiency">Trip & Efficiency</div>
-            <div class="cp-row">
-              <svg class="cp-ic" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-              <span class="cp-rl" data-i18n="tripA">Trip A</span>
-              <span class="cp-val" id="tripAPanel">0.00 km</span>
-              <button id="resetTripABtn" class="cp-btn-mini" title="Reset Trip A">↺</button>
+
+            <!-- Filter Bar -->
+            <div class="cp-filter-bar">
+              <button class="cp-pill active" data-filter="ALL" data-i18n="filterAll">ALL</button>
+              <button class="cp-pill" data-filter="CRITICAL" data-i18n="filterCrit">CRIT</button>
+              <button class="cp-pill" data-filter="WARNING" data-i18n="filterWarn">WARN</button>
+              <button class="cp-pill" data-filter="INFO" data-i18n="filterInfo">INFO</button>
             </div>
-            <div class="cp-row">
-              <svg class="cp-ic" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-              <span class="cp-rl" data-i18n="tripB">Trip B</span>
-              <span class="cp-val" id="tripBPanel">0.00 km</span>
-              <button id="resetTripBBtn" class="cp-btn-mini" title="Reset Trip B">↺</button>
+
+            <!-- History List -->
+            <div id="alertHistoryList" class="alert-hist-list">
+              <div class="alert-hist-empty" data-i18n="noAlertsRecorded">No alerts recorded</div>
             </div>
-            <div class="cp-row">
-              <svg class="cp-ic" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-              <span class="cp-rl" data-i18n="avgConsumption">Avg Consumption</span>
-              <span class="cp-val" id="tripWhPanel">35 Wh/km</span>
-            </div>
-            <button id="setResetBtn" class="cp-row cp-act" style="margin-top:2px; color:#ff8f8f;">
-              <svg class="cp-ic" viewBox="0 0 24 24" style="stroke:#ff8f8f;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-              <span class="cp-rl" data-i18n="resetAllTrips">Reset All Trips</span>
-            </button>
           </div>
         </div>
 
@@ -410,6 +677,7 @@
 <script src="js/config.js"></script>
 <script src="js/i18n.js"></script>
 <script src="js/jkbms.js"></script>
+<script src="js/alertEngine.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
