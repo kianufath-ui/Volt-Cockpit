@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Volt</string>
+    <string name="title_activity_main">Volt</string>
+    <string name="package_name">com.volt.dash</string>
+    <string name="custom_url_scheme">com.volt.dash</string>
+</resources>

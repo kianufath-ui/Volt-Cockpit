@@ -1,0 +1,21 @@
+{
+  "name": "volt",
+  "version": "1.0.0",
+  "description": "Volt — High-Performance EV Cockpit & Telemetry",
+  "main": "index.html",
+  "scripts": {
+    "build:web": "mkdir -p www && cp -r index.html css js vendor icons manifest.webmanifest sw.js www/",
+    "sync": "npm run build:web && cap sync android",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/splash-screen": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}

@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+# Android build artifacts & local properties
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/captures/
+android/.externalNativeBuild/
+
+# Temporary zip bundles
+*.zip
