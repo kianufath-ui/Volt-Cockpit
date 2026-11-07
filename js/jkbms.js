@@ -408,7 +408,13 @@
       this.activeNotifyUuid = chosenNotifyChar || CHAR_UUID_128;
       this.activeWriteUuid = chosenWriteChar || this.activeNotifyUuid;
 
-      console.log('Active BLE Service:', this.activeServiceUuid, 'Notify:', this.activeNotifyUuid, 'Write:', this.activeWriteUuid);
+      // Determine write capabilities
+      const allChars = services.flatMap(s => s.characteristics || []);
+      const wCharObj = allChars.find(c => (c.uuid || '').toLowerCase() === this.activeWriteUuid.toLowerCase());
+      this.canWriteWithResponse = !!(wCharObj && wCharObj.properties?.write);
+      this.canWriteNoResponse = !!(wCharObj && wCharObj.properties?.writeWithoutResponse);
+
+      console.log('Active BLE Service:', this.activeServiceUuid, 'Notify:', this.activeNotifyUuid, 'Write:', this.activeWriteUuid, 'WriteNoResp:', this.canWriteNoResponse);
 
       // Disconnect listener
       await Ble.addListener(`disconnected|${this.capDeviceId}`, () => {
@@ -416,13 +422,12 @@
       });
 
       // Notification listener (Capacitor stores lowercase UUIDs in event map)
-      const notifKey = `notification|${this.capDeviceId}|${this.activeServiceUuid.toLowerCase()}|${this.activeNotifyUuid.toLowerCase()}`;
-      await Ble.addListener(notifKey, (res) => {
+      const handleNotif = (res) => {
         if (!res || !res.value) return;
         let bytes;
         if (typeof res.value === 'string') {
           const hex = res.value.replace(/[^0-9a-fA-F]/g, '');
-          const len = hex.length / 2;
+          const len = Math.floor(hex.length / 2);
           bytes = new Uint8Array(len);
           for (let i = 0; i < len; i++) {
             bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
@@ -433,7 +438,19 @@
         if (bytes && bytes.length) {
           this._append(bytes);
         }
-      });
+      };
+
+      const sUuidLow = this.activeServiceUuid.toLowerCase();
+      const cUuidLow = this.activeNotifyUuid.toLowerCase();
+      const devId = this.capDeviceId;
+
+      await Ble.addListener(`notification|${devId}|${sUuidLow}|${cUuidLow}`, handleNotif);
+      if (devId.toUpperCase() !== devId) {
+        await Ble.addListener(`notification|${devId.toUpperCase()}|${sUuidLow}|${cUuidLow}`, handleNotif);
+      }
+      if (devId.toLowerCase() !== devId) {
+        await Ble.addListener(`notification|${devId.toLowerCase()}|${sUuidLow}|${cUuidLow}`, handleNotif);
+      }
 
       // Start notifications using discovered UUIDs
       await Ble.startNotifications({
@@ -446,9 +463,17 @@
       this._attempts = 0;
       this.onStatus('connected', this.capDeviceName);
 
-      // Trigger inquiry frame 0x97 & 0x96
-      setTimeout(() => { this._send(0x97).catch(() => {}); }, 250);
-      setTimeout(() => { this._send(0x96).catch(() => {}); }, 700);
+      // Start recurring telemetry polling timer (every 1000ms)
+      if (this._pollTimer) clearInterval(this._pollTimer);
+      this._pollTimer = setInterval(() => {
+        if (this.connected) {
+          this._send(0x97).catch(() => {});
+        }
+      }, 1000);
+
+      // Trigger initial inquiry frame 0x97 & 0x96
+      setTimeout(() => { this._send(0x97).catch(() => {}); }, 150);
+      setTimeout(() => { this._send(0x96).catch(() => {}); }, 500);
     }
 
     async connect(scanAll) {
@@ -524,17 +549,44 @@
       // Capacitor Native BLE write
       if (this.isCap && this.capDeviceId) {
         const Ble = window.Capacitor.Plugins.BluetoothLe;
-        let hex = '';
+        // Capacitor bluetooth-le plugin Conversion.kt splits value by space!
+        const hexArr = [];
         for (let i = 0; i < frame.length; i++) {
-          const h = frame[i].toString(16);
-          hex += (h.length === 1 ? '0' : '') + h;
+          hexArr.push(frame[i].toString(16).padStart(2, '0'));
         }
-        await Ble.write({
-          deviceId: this.capDeviceId,
-          service: this.activeServiceUuid || SERVICE_UUID_128,
-          characteristic: this.activeWriteUuid || this.activeNotifyUuid || CHAR_UUID_128,
-          value: hex,
-        });
+        const hexValue = hexArr.join(' ');
+
+        const sUuid = this.activeServiceUuid || SERVICE_UUID_128;
+        const cUuid = this.activeWriteUuid || this.activeNotifyUuid || CHAR_UUID_128;
+
+        try {
+          if (this.canWriteNoResponse && !this.canWriteWithResponse) {
+            await Ble.writeWithoutResponse({
+              deviceId: this.capDeviceId,
+              service: sUuid,
+              characteristic: cUuid,
+              value: hexValue,
+            });
+          } else {
+            await Ble.write({
+              deviceId: this.capDeviceId,
+              service: sUuid,
+              characteristic: cUuid,
+              value: hexValue,
+            });
+          }
+        } catch (writeErr) {
+          try {
+            await Ble.writeWithoutResponse({
+              deviceId: this.capDeviceId,
+              service: sUuid,
+              characteristic: cUuid,
+              value: hexValue,
+            });
+          } catch (writeErr2) {
+            console.warn('BLE write error:', writeErr2);
+          }
+        }
         return;
       }
 
@@ -595,6 +647,10 @@
     _onDisconnected() {
       this.connected = false;
       this.characteristic = null;
+      if (this._pollTimer) {
+        clearInterval(this._pollTimer);
+        this._pollTimer = null;
+      }
       this.onStatus('disconnected', 'Terputus');
       if (this._manual) return;
       if (this._attempts >= 5) {
@@ -605,13 +661,7 @@
       clearTimeout(this._timer);
       this._timer = setTimeout(() => {
         if (this.isCap && this.capDeviceId) {
-          window.Capacitor.Plugins.BluetoothLe.connect({ deviceId: this.capDeviceId })
-            .then(() => {
-              this.connected = true;
-              this.onStatus('connected', this.capDeviceName);
-              setTimeout(() => { this._send(0x97).catch(() => {}); }, 250);
-            })
-            .catch(() => {});
+          this.connectToDevice({ deviceId: this.capDeviceId, name: this.capDeviceName }).catch(() => {});
         } else {
           this._open().catch(() => {});
         }
@@ -621,6 +671,10 @@
     async disconnect() {
       this._manual = true;
       clearTimeout(this._timer);
+      if (this._pollTimer) {
+        clearInterval(this._pollTimer);
+        this._pollTimer = null;
+      }
       if (this.isCap && this.capDeviceId) {
         try {
           await window.Capacitor.Plugins.BluetoothLe.disconnect({ deviceId: this.capDeviceId });
