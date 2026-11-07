@@ -2112,6 +2112,52 @@ main { position: relative; flex: 1; min-height: 0; }
   50% { opacity: 0.3; transform: scale(0.7); }
 }
 
+.ble-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ble-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: #94a3b8;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ble-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+}
+
+.ble-pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #64748b;
+  transition: background 0.15s ease;
+}
+
+.ble-pill-btn.active {
+  background: rgba(56, 242, 160, 0.08);
+  border-color: rgba(56, 242, 160, 0.3);
+  color: #38f2a0;
+}
+
+.ble-pill-btn.active .ble-pill-dot {
+  background: #38f2a0;
+  box-shadow: 0 0 5px rgba(56, 242, 160, 0.4);
+}
+
 .ble-x {
   background: none;
   border: none;

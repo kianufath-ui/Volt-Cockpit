@@ -609,8 +609,18 @@
   /* ---------------- Universal Bluetooth Scanner Modal ---------------- */
   const bleScanState = {
     devices: new Map(),
+    filterBms: true,
     renderPending: false
   };
+
+  function toggleBleFilter() {
+    bleScanState.filterBms = !bleScanState.filterBms;
+    const btn = $('#bleFilterBmsBtn');
+    const txt = $('#bleFilterText');
+    if (btn) btn.classList.toggle('active', bleScanState.filterBms);
+    if (txt) txt.textContent = bleScanState.filterBms ? 'BMS ONLY' : 'ALL BLE';
+    renderBleDeviceList();
+  }
 
   async function openBleModal() {
     if (!state.bms || !state.bms.isCapacitor) {
@@ -623,8 +633,12 @@
     modal.removeAttribute('hidden');
 
     bleScanState.devices.clear();
-    renderBleDeviceList();
+    const btn = $('#bleFilterBmsBtn');
+    const txt = $('#bleFilterText');
+    if (btn) btn.classList.toggle('active', bleScanState.filterBms);
+    if (txt) txt.textContent = bleScanState.filterBms ? 'BMS ONLY' : 'ALL BLE';
 
+    renderBleDeviceList();
     startBleScan();
   }
 
@@ -692,22 +706,46 @@
 
     const allDevices = Array.from(bleScanState.devices.values());
 
-    allDevices.sort((a, b) => {
+    const filtered = allDevices.filter((d) => {
+      if (!bleScanState.filterBms) return true;
+      const lower = (d.name || '').toLowerCase();
+      return (
+        lower.includes('jk') ||
+        lower.includes('bms') ||
+        lower.includes('cangki') ||
+        lower.includes('sepeda') ||
+        lower.includes('volt') ||
+        lower.includes('daly') ||
+        lower.includes('ant') ||
+        lower.includes('smart') ||
+        d.isLastPaired
+      );
+    });
+
+    filtered.sort((a, b) => {
       if (a.isLastPaired && !b.isLastPaired) return -1;
       if (!a.isLastPaired && b.isLastPaired) return 1;
       return (b.rssi || -99) - (a.rssi || -99);
     });
 
-    if (allDevices.length === 0) {
+    if (filtered.length === 0) {
       listEl.innerHTML = '';
-      if (emptyEl) emptyEl.style.display = 'flex';
+      if (emptyEl) {
+        emptyEl.style.display = 'flex';
+        const txt = emptyEl.querySelector('.ble-empty-text');
+        if (txt) {
+          txt.textContent = bleScanState.filterBms
+            ? (t('bleSearchingBms') || 'Mencari BMS... (Ketuk "BMS ONLY" untuk melihat semua BLE)')
+            : (t('bleSearchingTitle') || 'Mencari perangkat Bluetooth di sekitar...');
+        }
+      }
       return;
     }
 
     if (emptyEl) emptyEl.style.display = 'none';
 
     let html = '';
-    allDevices.forEach((d) => {
+    filtered.forEach((d) => {
       const displayName = d.name || ('BMS ' + d.deviceId.slice(-5));
       const sub = d.deviceId + (d.rssi ? ' · ' + d.rssi + ' dBm' : '');
 
@@ -1150,6 +1188,7 @@
     });
     on('#bleSelectBtn', 'click', () => openBleModal());
     on('#scanAllBtn', 'click', () => openBleModal());
+    on('#bleFilterBmsBtn', 'click', toggleBleFilter);
     on('#bleCloseBtn', 'click', closeBleModal);
     on('#bleCancelBtn', 'click', closeBleModal);
     on('#bleModalBackdrop', 'click', closeBleModal);
