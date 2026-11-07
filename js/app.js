@@ -823,7 +823,7 @@
   function onBmsData(d) {
     if (!d) return;
     if (d.type === 'telemetry') renderTelemetry(d);
-    else if (d.type === 'info') renderInfo(d);
+    else if (d.type === 'info' || d.type === 'deviceInfo') renderInfo(d);
     else if (d.type === 'settings') renderSettings(d);
   }
 
@@ -1092,44 +1092,64 @@
   }
 
   function renderInfo(info) {
+    if (!info) return;
     state.info = info;
     renderKV($('#deviceInfo'), [
-      ['Model', info.vendor || '—'],
-      ['Hardware', info.hw || '—'],
-      ['Software', info.sw || '—'],
-      ['Nama', info.name || '—'],
+      ['Model', info.vendor || info.model || 'JK-BMS'],
+      ['Hardware', info.hw || info.hardware || '—'],
+      ['Software', info.sw || info.software || '—'],
+      ['Nama', info.name || info.deviceName || '—'],
       ['Serial', info.serial || '—'],
-      ['Produksi', formatDate(info.mfg)],
+      ['Produksi', formatDate(info.mfg || info.mfgDate)],
     ]);
-    if (info.name) {
-      $('#bmsName').textContent = info.name;
-      $('.brand-name').textContent = info.name;
+    if (info.name || info.deviceName) {
+      const n = info.name || info.deviceName;
+      const bn = $('#bmsName'); if (bn) bn.textContent = n;
+      const brand = $('.brand-name'); if (brand) brand.textContent = n;
     }
   }
 
   function renderSettings(s) {
+    if (!s) return;
     state.settings = s;
+    const cellCount = s.cellCount ?? s.cellCountSetting;
+    const nominalAh = s.nominalAh ?? s.nominalCapAh;
+    const cellOVP = s.cellOVP ?? s.cellOvp;
+    const cellOVPRec = s.cellOVPRecovery ?? s.cellOvpr;
+    const cellUVP = s.cellUVP ?? s.cellUvp;
+    const cellUVPRec = s.cellUVPRecovery ?? s.cellUvpr;
+    const balTrig = s.balanceTrigger ?? s.balanceTriggerV;
+    const balStart = s.balanceStartV ?? s.cellReqV;
+    const maxBal = s.maxBalanceA ?? s.balanceMaxA;
+    const chgOtp = s.chargeOTP ?? s.chargeOtp;
+    const disOtp = s.dischargeOTP ?? s.dischargeOtp;
+    const chgUtp = s.chargeUTP ?? s.chargeUtp;
+    const disUtp = s.dischargeUTP ?? s.dischargeUtp;
+    const mosOtp = s.mosOTP ?? s.mosOtp;
+    const chgSw = s.chargeSwitch ?? s.chargeMosSwitch;
+    const disSw = s.dischargeSwitch ?? s.dischargeMosSwitch;
+
     renderKV($('#settingsInfo'), [
-      ['Jumlah sel', s.cellCount || '—'],
-      ['Kapasitas nominal', fmt(s.nominalAh, 1) + ' Ah'],
-      ['Max charge', fmt(s.maxChargeA, 1) + ' A'],
-      ['Max discharge', fmt(s.maxDischargeA, 1) + ' A'],
-      ['Cell OVP', fmt(s.cellOVP, 3) + ' V'],
-      ['Cell OVP recovery', fmt(s.cellOVPRecovery, 3) + ' V'],
-      ['Cell UVP', fmt(s.cellUVP, 3) + ' V'],
-      ['Cell UVP recovery', fmt(s.cellUVPRecovery, 3) + ' V'],
-      ['Batas delta balance', fmt(s.balanceTrigger * 1000, 0) + ' mV'],
-      ['Mulai balance', fmt(s.balanceStartV, 3) + ' V'],
-      ['Max arus balance', fmt(s.maxBalanceA, 2) + ' A'],
-      ['Tegangan SOC 100%', fmt(s.soc100V, 3) + ' V'],
-      ['Tegangan SOC 0%', fmt(s.soc0V, 3) + ' V'],
-      ['Power off', fmt(s.powerOffV, 3) + ' V'],
-      ['Charge OTP', fmt(s.chargeOTP, 1) + ' °C'],
-      ['Discharge OTP', fmt(s.dischargeOTP, 1) + ' °C'],
-      ['Charge UTP', fmt(s.chargeUTP, 1) + ' °C'],
-      ['Discharge UTP', fmt(s.dischargeUTP, 1) + ' °C'],
-      ['MOS OTP', fmt(s.mosOTP, 1) + ' °C'],
-      ['Saklar charge / discharge', (s.chargeSwitch ? 'ON' : 'OFF') + ' / ' + (s.dischargeSwitch ? 'ON' : 'OFF')],
+      ['Jumlah sel', cellCount ? (cellCount + 'S') : '—'],
+      ['Kapasitas nominal', typeof nominalAh === 'number' ? (fmt(nominalAh, 1) + ' Ah') : '—'],
+      ['Max charge', typeof s.maxChargeA === 'number' ? (fmt(s.maxChargeA, 1) + ' A') : '—'],
+      ['Max discharge', typeof s.maxDischargeA === 'number' ? (fmt(s.maxDischargeA, 1) + ' A') : '—'],
+      ['Cell OVP', typeof cellOVP === 'number' ? (fmt(cellOVP, 3) + ' V') : '—'],
+      ['Cell OVP recovery', typeof cellOVPRec === 'number' ? (fmt(cellOVPRec, 3) + ' V') : '—'],
+      ['Cell UVP', typeof cellUVP === 'number' ? (fmt(cellUVP, 3) + ' V') : '—'],
+      ['Cell UVP recovery', typeof cellUVPRec === 'number' ? (fmt(cellUVPRec, 3) + ' V') : '—'],
+      ['Batas delta balance', typeof balTrig === 'number' ? (fmt(balTrig * 1000, 0) + ' mV') : '—'],
+      ['Mulai balance', typeof balStart === 'number' ? (fmt(balStart, 3) + ' V') : '—'],
+      ['Max arus balance', typeof maxBal === 'number' ? (fmt(maxBal, 2) + ' A') : '—'],
+      ['Tegangan SOC 100%', typeof s.soc100V === 'number' ? (fmt(s.soc100V, 3) + ' V') : '—'],
+      ['Tegangan SOC 0%', typeof s.soc0V === 'number' ? (fmt(s.soc0V, 3) + ' V') : '—'],
+      ['Power off', typeof s.powerOffV === 'number' ? (fmt(s.powerOffV, 3) + ' V') : '—'],
+      ['Charge OTP', typeof chgOtp === 'number' ? (fmt(chgOtp, 1) + ' °C') : '—'],
+      ['Discharge OTP', typeof disOtp === 'number' ? (fmt(disOtp, 1) + ' °C') : '—'],
+      ['Charge UTP', typeof chgUtp === 'number' ? (fmt(chgUtp, 1) + ' °C') : '—'],
+      ['Discharge UTP', typeof disUtp === 'number' ? (fmt(disUtp, 1) + ' °C') : '—'],
+      ['MOS OTP', typeof mosOtp === 'number' ? (fmt(mosOtp, 1) + ' °C') : '—'],
+      ['Saklar charge / discharge', (chgSw ? 'ON' : 'OFF') + ' / ' + (disSw ? 'ON' : 'OFF')],
       ['Saklar balancer', s.balancerSwitch ? 'ON' : 'OFF'],
     ]);
   }
@@ -1157,6 +1177,12 @@
     const panel = $('#settingsPanel');
     if (panel) panel.classList.remove('cp-open');
     if (name === 'ride' && state.map) setTimeout(() => state.map.invalidateSize(), 60);
+    if (name === 'bms' && state.bms && state.bms.connected) {
+      if (typeof state.bms.requestDeviceInfo === 'function') state.bms.requestDeviceInfo();
+      setTimeout(() => {
+        if (typeof state.bms.requestSettings === 'function') state.bms.requestSettings();
+      }, 300);
+    }
   }
 
   function tickClock() {

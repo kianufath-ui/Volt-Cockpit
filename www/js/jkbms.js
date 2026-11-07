@@ -102,53 +102,95 @@
   }
 
   function parseDeviceInfo(f) {
+    const vendor = cstr(f, 6, 16);
+    const hw = cstr(f, 22, 8);
+    const sw = cstr(f, 30, 8);
+    const name = cstr(f, 46, 16);
+    const serial = cstr(f, 86, 16);
+    const mfg = cstr(f, 78, 8);
     return {
-      type: 'deviceInfo',
-      vendor: cstr(f, 6, 16),
-      hardware: cstr(f, 22, 8),
-      software: cstr(f, 30, 8),
+      type: 'info',
+      vendor: vendor || 'JK-BMS',
+      hw: hw || '—',
+      hardware: hw || '—',
+      sw: sw || '—',
+      software: sw || '—',
       uptimeSec: u32(f, 38),
       powerOnCount: u32(f, 42),
-      deviceName: cstr(f, 46, 16),
+      name: name || 'Volt BMS',
+      deviceName: name || 'Volt BMS',
       passcode: cstr(f, 62, 16),
-      mfgDate: cstr(f, 78, 8),
-      serial: cstr(f, 86, 16),
+      mfg: mfg || '—',
+      mfgDate: mfg || '—',
+      serial: serial || '—',
       passcodeTag: cstr(f, 102, 5),
       userId: cstr(f, 107, 16),
     };
   }
 
   function parseSettings(f) {
+    const cellUvp = u16(f, 10) * 0.001;
+    const cellUvpr = u16(f, 12) * 0.001;
+    const cellOvp = u16(f, 14) * 0.001;
+    const cellOvpr = u16(f, 16) * 0.001;
+    const balanceTriggerV = u16(f, 18) * 0.001;
+    const soc100V = u16(f, 20) * 0.001;
+    const soc0V = u16(f, 22) * 0.001;
+    const cellReqV = u16(f, 24) * 0.001;
+    const powerOffV = u16(f, 26) * 0.001;
+    const maxChargeA = u16(f, 28) * 0.01;
+    const maxDischargeA = u16(f, 32) * 0.01;
+    const chargeOtp = i16(f, 36) * 0.1;
+    const chargeOtpr = i16(f, 38) * 0.1;
+    const dischargeOtp = i16(f, 40) * 0.1;
+    const dischargeOtpr = i16(f, 42) * 0.1;
+    const chargeUtp = i16(f, 44) * 0.1;
+    const chargeUtpr = i16(f, 46) * 0.1;
+    const mosOtp = i16(f, 48) * 0.1;
+    const mosOtpr = i16(f, 50) * 0.1;
+    const cellCountSetting = u16(f, 52);
+    const chargeMosSwitch = f[54] !== 0;
+    const dischargeMosSwitch = f[55] !== 0;
+    const balancerSwitch = f[56] !== 0;
+    const nominalCapAh = u32(f, 58) * 0.001;
+    const balanceMaxA = u16(f, 62) * 0.001;
+
     return {
       type: 'settings',
       smartSleepSec: u32(f, 6),
-      cellUvp: u16(f, 10) * 0.001,
-      cellUvpr: u16(f, 12) * 0.001,
-      cellOvp: u16(f, 14) * 0.001,
-      cellOvpr: u16(f, 16) * 0.001,
-      balanceTriggerV: u16(f, 18) * 0.001,
-      soc100V: u16(f, 20) * 0.001,
-      soc0V: u16(f, 22) * 0.001,
-      cellReqV: u16(f, 24) * 0.001,
-      powerOffV: u16(f, 26) * 0.001,
-      maxChargeA: u16(f, 28) * 0.01,
-      chargeDelaySec: u16(f, 30),
-      maxDischargeA: u16(f, 32) * 0.01,
-      dischargeDelaySec: u16(f, 34),
-      chargeOtp: i16(f, 36) * 0.1,
-      chargeOtpr: i16(f, 38) * 0.1,
-      dischargeOtp: i16(f, 40) * 0.1,
-      dischargeOtpr: i16(f, 42) * 0.1,
-      chargeUtp: i16(f, 44) * 0.1,
-      chargeUtpr: i16(f, 46) * 0.1,
-      mosOtp: i16(f, 48) * 0.1,
-      mosOtpr: i16(f, 50) * 0.1,
-      cellCountSetting: u16(f, 52),
-      chargeMosSwitch: f[54] !== 0,
-      dischargeMosSwitch: f[55] !== 0,
-      balancerSwitch: f[56] !== 0,
-      nominalCapAh: u32(f, 58) * 0.001,
-      balanceMaxA: u16(f, 62) * 0.001,
+      cellCount: cellCountSetting,
+      nominalAh: nominalCapAh,
+      maxChargeA,
+      maxDischargeA,
+      cellOVP: cellOvp,
+      cellOVPRecovery: cellOvpr,
+      cellUVP: cellUvp,
+      cellUVPRecovery: cellUvpr,
+      balanceTrigger: balanceTriggerV,
+      balanceStartV: cellReqV,
+      maxBalanceA: balanceMaxA,
+      soc100V,
+      soc0V,
+      powerOffV,
+      chargeOTP: chargeOtp,
+      dischargeOTP: dischargeOtp,
+      chargeUTP: chargeUtp,
+      dischargeUTP: dischargeUtp,
+      mosOTP: mosOtp,
+      chargeSwitch: chargeMosSwitch,
+      dischargeSwitch: dischargeMosSwitch,
+      balancerSwitch,
+      // Original camelCase aliases:
+      cellUvp,
+      cellUvpr,
+      cellOvp,
+      cellOvpr,
+      balanceTriggerV,
+      nominalCapAh,
+      balanceMaxA,
+      chargeOtp,
+      dischargeOtp,
+      mosOtp,
     };
   }
 
@@ -483,6 +525,14 @@
           }
         }
       }, 950);
+    }
+
+    requestDeviceInfo() {
+      return this._send(0x97).catch(() => {});
+    }
+
+    requestSettings() {
+      return this._send(0x96).catch(() => {});
     }
 
     async connect(scanAll) {
