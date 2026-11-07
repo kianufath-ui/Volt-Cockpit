@@ -1,5 +1,5 @@
 /*
- * JK BMS BLE client — Web Bluetooth port of the JK02_32S protocol.
+ * JK BMS BLE client — Dual support: Native Capacitor BLE & Web Bluetooth
  * Service 0xFFE0, characteristic 0xFFE1 (write + notify).
  * Commands are 20-byte frames: AA 55 90 EB <cmd> 00... <crc8>
  * Responses are 300/320-byte frames: 55 AA EB 90 <type> ...
@@ -9,6 +9,8 @@
 
   const SERVICE_UUID = 0xffe0;
   const CHAR_UUID = 0xffe1;
+  const SERVICE_UUID_128 = '0000ffe0-0000-1000-8000-00805f9b34fb';
+  const CHAR_UUID_128 = '0000ffe1-0000-1000-8000-00805f9b34fb';
 
   const u16 = (b, o) => b[o] | (b[o + 1] << 8);
   const i16 = (b, o) => (u16(b, o) << 16) >> 16;
@@ -99,43 +101,52 @@
 
   function parseDeviceInfo(f) {
     return {
-      type: 'info',
+      type: 'deviceInfo',
       vendor: cstr(f, 6, 16),
-      hw: cstr(f, 22, 8),
-      sw: cstr(f, 30, 8),
-      name: cstr(f, 46, 16),
+      hardware: cstr(f, 22, 8),
+      software: cstr(f, 30, 8),
+      uptimeSec: u32(f, 38),
+      powerOnCount: u32(f, 42),
+      deviceName: cstr(f, 46, 16),
+      passcode: cstr(f, 62, 16),
+      mfgDate: cstr(f, 78, 8),
       serial: cstr(f, 86, 16),
-      mfg: cstr(f, 78, 8),
-      ts: Date.now(),
+      passcodeTag: cstr(f, 102, 5),
+      userId: cstr(f, 107, 16),
     };
   }
 
   function parseSettings(f) {
     return {
       type: 'settings',
-      cellCount: f[114],
-      nominalAh: u32(f, 130) * 0.001,
-      maxChargeA: u32(f, 50) * 0.001,
-      maxDischargeA: u32(f, 62) * 0.001,
-      cellOVP: u32(f, 18) * 0.001,
-      cellOVPRecovery: u32(f, 22) * 0.001,
-      cellUVP: u32(f, 10) * 0.001,
-      cellUVPRecovery: u32(f, 14) * 0.001,
-      balanceTrigger: u32(f, 26) * 0.001,
-      balanceStartV: u32(f, 138) * 0.001,
-      maxBalanceA: u32(f, 78) * 0.001,
-      soc100V: u32(f, 30) * 0.001,
-      soc0V: u32(f, 34) * 0.001,
-      powerOffV: u32(f, 46) * 0.001,
-      chargeOTP: u32(f, 82) * 0.1,
-      dischargeOTP: u32(f, 90) * 0.1,
-      chargeUTP: i32(f, 98) * 0.1,
-      dischargeUTP: i32(f, 102) * 0.1,
-      mosOTP: i32(f, 106) * 0.1,
-      chargeSwitch: f[118] !== 0,
-      dischargeSwitch: f[122] !== 0,
-      balancerSwitch: f[126] !== 0,
-      ts: Date.now(),
+      smartSleepSec: u32(f, 6),
+      cellUvp: u16(f, 10) * 0.001,
+      cellUvpr: u16(f, 12) * 0.001,
+      cellOvp: u16(f, 14) * 0.001,
+      cellOvpr: u16(f, 16) * 0.001,
+      balanceTriggerV: u16(f, 18) * 0.001,
+      soc100V: u16(f, 20) * 0.001,
+      soc0V: u16(f, 22) * 0.001,
+      cellReqV: u16(f, 24) * 0.001,
+      powerOffV: u16(f, 26) * 0.001,
+      maxChargeA: u16(f, 28) * 0.01,
+      chargeDelaySec: u16(f, 30),
+      maxDischargeA: u16(f, 32) * 0.01,
+      dischargeDelaySec: u16(f, 34),
+      chargeOtp: i16(f, 36) * 0.1,
+      chargeOtpr: i16(f, 38) * 0.1,
+      dischargeOtp: i16(f, 40) * 0.1,
+      dischargeOtpr: i16(f, 42) * 0.1,
+      chargeUtp: i16(f, 44) * 0.1,
+      chargeUtpr: i16(f, 46) * 0.1,
+      mosOtp: i16(f, 48) * 0.1,
+      mosOtpr: i16(f, 50) * 0.1,
+      cellCountSetting: u16(f, 52),
+      chargeMosSwitch: f[54] !== 0,
+      dischargeMosSwitch: f[55] !== 0,
+      balancerSwitch: f[56] !== 0,
+      nominalCapAh: u32(f, 58) * 0.001,
+      balanceMaxA: u16(f, 62) * 0.001,
     };
   }
 
@@ -162,30 +173,126 @@
       this._manual = false;
       this._attempts = 0;
       this._timer = null;
+
+      // Capacitor Native BLE state
+      this.isCap = false;
+      this.capDeviceId = null;
+      this.capDeviceName = 'sepeda cangki';
+    }
+
+    get isCapacitor() {
+      return typeof window !== 'undefined' && !!window.Capacitor && (
+        (typeof window.Capacitor.isPluginAvailable === 'function' && window.Capacitor.isPluginAvailable('BluetoothLe')) ||
+        (!!window.Capacitor.Plugins && !!window.Capacitor.Plugins.BluetoothLe)
+      );
     }
 
     get supported() {
-      return typeof navigator !== 'undefined' && !!navigator.bluetooth;
+      const hasWebBt = typeof navigator !== 'undefined' && !!navigator.bluetooth;
+      return hasWebBt || this.isCapacitor;
     }
 
     get deviceName() {
+      if (this.isCap && this.capDeviceName) return this.capDeviceName;
       return (this.device && this.device.name) || 'BMS';
     }
 
     async connect(scanAll) {
       if (!this.supported) {
-        throw new Error('Web Bluetooth tidak didukung. Buka di Chrome Android via HTTPS.');
+        throw new Error('Bluetooth tidak didukung pada browser/perangkat ini.');
       }
       this._manual = false;
       this._attempts = 0;
-      this.onStatus('connecting', 'Pilih device...');
+      this.onStatus('connecting', 'Mencari device...');
 
+      // 1. Prioritaskan Capacitor Native BLE jika running di APK Android Native
+      if (this.isCapacitor) {
+        return this._connectCapacitor(scanAll);
+      }
+
+      // 2. Fallback ke Web Bluetooth browser jika running di Chrome HTTPS
+      return this._connectWebBluetooth(scanAll);
+    }
+
+    async _connectCapacitor(scanAll) {
+      const Ble = window.Capacitor.Plugins.BluetoothLe;
+      await Ble.initialize();
+
+      // Opsi pencarian device
+      const options = scanAll
+        ? { optionalServices: [SERVICE_UUID_128] }
+        : { namePrefix: 'sepeda', optionalServices: [SERVICE_UUID_128] };
+
+      let dev;
+      try {
+        dev = await Ble.requestDevice(options);
+      } catch (e) {
+        // Jika filter namePrefix tidak menemukan, coba tanpa filter
+        dev = await Ble.requestDevice({ optionalServices: [SERVICE_UUID_128] });
+      }
+
+      if (!dev || !dev.deviceId) {
+        throw new Error('Tidak ada perangkat yang dipilih');
+      }
+
+      this.isCap = true;
+      this.capDeviceId = dev.deviceId;
+      this.capDeviceName = dev.name || 'sepeda cangki';
+
+      this.onStatus('connecting', 'Menghubungkan ke ' + this.capDeviceName + '...');
+
+      // Connect GATT
+      await Ble.connect({ deviceId: this.capDeviceId });
+
+      // Disconnect listener
+      await Ble.addListener(`disconnected|${this.capDeviceId}`, () => {
+        this._onDisconnected();
+      });
+
+      // Notification listener
+      const notifKey = `notification|${this.capDeviceId}|${SERVICE_UUID_128}|${CHAR_UUID_128}`;
+      await Ble.addListener(notifKey, (res) => {
+        if (!res || !res.value) return;
+        let bytes;
+        if (typeof res.value === 'string') {
+          const hex = res.value.replace(/[^0-9a-fA-F]/g, '');
+          const len = hex.length / 2;
+          bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+          }
+        } else if (res.value.buffer) {
+          bytes = new Uint8Array(res.value.buffer, res.value.byteOffset, res.value.byteLength);
+        }
+        if (bytes && bytes.length) {
+          this._append(bytes);
+        }
+      });
+
+      // Mulai notifikasi
+      await Ble.startNotifications({
+        deviceId: this.capDeviceId,
+        service: SERVICE_UUID_128,
+        characteristic: CHAR_UUID_128,
+      });
+
+      this.connected = true;
+      this._attempts = 0;
+      this.onStatus('connected', this.capDeviceName);
+
+      // Kirim inquiry frame 0x97 & 0x96
+      setTimeout(() => { this._send(0x97).catch(() => {}); }, 250);
+      setTimeout(() => { this._send(0x96).catch(() => {}); }, 700);
+    }
+
+    async _connectWebBluetooth(scanAll) {
       const options = scanAll
         ? { acceptAllDevices: true, optionalServices: [SERVICE_UUID] }
         : { filters: [{ namePrefix: 'sepeda' }], optionalServices: [SERVICE_UUID] };
 
       const device = await navigator.bluetooth.requestDevice(options);
       this.device = device;
+      this.isCap = false;
       device.addEventListener('gattserverdisconnected', () => this._onDisconnected());
       await this._open();
     }
@@ -214,8 +321,27 @@
     }
 
     async _send(cmd) {
-      if (!this.characteristic) throw new Error('BMS belum terhubung');
       const frame = buildCommand(cmd);
+
+      // Capacitor Native BLE write
+      if (this.isCap && this.capDeviceId) {
+        const Ble = window.Capacitor.Plugins.BluetoothLe;
+        let hex = '';
+        for (let i = 0; i < frame.length; i++) {
+          const h = frame[i].toString(16);
+          hex += (h.length === 1 ? '0' : '') + h;
+        }
+        await Ble.write({
+          deviceId: this.capDeviceId,
+          service: SERVICE_UUID_128,
+          characteristic: CHAR_UUID_128,
+          value: hex,
+        });
+        return;
+      }
+
+      // Web Bluetooth write
+      if (!this.characteristic) throw new Error('BMS belum terhubung');
       const ch = this.characteristic;
       if (ch.properties.write && ch.writeValueWithResponse) {
         await ch.writeValueWithResponse(frame);
@@ -249,23 +375,21 @@
         if (crc8(this.buf, 299) === this.buf[299]) frameLen = 300;
         else if (this.buf.length >= 320 && crc8(this.buf, 319) === this.buf[319]) frameLen = 320;
 
-        if (!frameLen) {
-          this.buf = this.buf.slice(1);
-          const s = indexOfHeader(this.buf);
-          if (s < 0) {
-            if (this.buf.length > 512) this.buf = this.buf.slice(-4);
-            return;
-          }
-          this.buf = this.buf.slice(s);
-          continue;
+        if (frameLen === 0) {
+          const next = indexOfHeader(this.buf.subarray(1));
+          if (next >= 0) this.buf = this.buf.slice(next + 1);
+          else this.buf = this.buf.slice(this.buf.length - 3);
+          break;
         }
 
-        const frame = this.buf.slice(0, frameLen);
+        const frame = this.buf.subarray(0, frameLen);
         this.buf = this.buf.slice(frameLen);
-        try {
-          this.onData(parseFrame(frame));
-        } catch (e) {
-          this.onError(e);
+        const parsed = parseFrame(frame);
+        if (parsed) {
+          this.onData(parsed);
+          if (parsed.type === 'telemetry') {
+            this.onStatus('connected', this.deviceName);
+          }
         }
       }
     }
@@ -282,13 +406,28 @@
       this._attempts++;
       clearTimeout(this._timer);
       this._timer = setTimeout(() => {
-        this._open().catch(() => {});
+        if (this.isCap && this.capDeviceId) {
+          window.Capacitor.Plugins.BluetoothLe.connect({ deviceId: this.capDeviceId })
+            .then(() => {
+              this.connected = true;
+              this.onStatus('connected', this.capDeviceName);
+              setTimeout(() => { this._send(0x97).catch(() => {}); }, 250);
+            })
+            .catch(() => {});
+        } else {
+          this._open().catch(() => {});
+        }
       }, 1200 * this._attempts);
     }
 
     async disconnect() {
       this._manual = true;
       clearTimeout(this._timer);
+      if (this.isCap && this.capDeviceId) {
+        try {
+          await window.Capacitor.Plugins.BluetoothLe.disconnect({ deviceId: this.capDeviceId });
+        } catch (_) {}
+      }
       try {
         if (this.device && this.device.gatt && this.device.gatt.connected) {
           this.device.gatt.disconnect();
