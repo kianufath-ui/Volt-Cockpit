@@ -149,10 +149,11 @@
   let toastTimer;
   function toast(msg) {
     const el = $('#toast');
+    if (!el) return;
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 3800);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
   }
 
   function setPill(id, cls, label) {
@@ -586,6 +587,7 @@
   }
 
   function onBmsStatus(status, text) {
+    const prevStatus = state.bmsStatus;
     state.bmsStatus = status;
     const displayName = text || localStorage.getItem('volt_bms_device_name') || 'Volt BMS';
     if (status === 'connected') {
@@ -593,7 +595,9 @@
       const bn = $('#bmsName'); if (bn) bn.textContent = displayName;
       const bpn = $('#bmsPanelName'); if (bpn) bpn.textContent = displayName;
       const cl = $('#connectLabel'); if (cl) cl.textContent = t('disconnectBms') || 'Disconnect';
-      toast((t('toastBmsConnected') || 'BMS terhubung: ') + displayName);
+      if (prevStatus !== 'connected') {
+        toast((t('toastBmsConnected') || 'BMS terhubung: ') + displayName);
+      }
     } else if (status === 'connecting') {
       setPill('bms', 'warn', 'BMS…');
     } else if (status === 'error') {

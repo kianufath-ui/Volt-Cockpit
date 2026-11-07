@@ -637,9 +637,6 @@
         const parsed = parseFrame(frame);
         if (parsed) {
           this.onData(parsed);
-          if (parsed.type === 'telemetry') {
-            this.onStatus('connected', this.deviceName);
-          }
         }
       }
     }
