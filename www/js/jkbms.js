@@ -299,13 +299,124 @@
 
       try { await Ble.disconnect({ deviceId: this.capDeviceId }); } catch (_) {}
 
+      // Connect GATT
       await Ble.connect({ deviceId: this.capDeviceId });
 
+      // Small pause for Android GATT service discovery to finalize
+      await new Promise(r => setTimeout(r, 250));
+
+      // Retrieve all services discovered by Android GATT
+      let services = [];
+      try {
+        const sRes = await Ble.getServices({ deviceId: this.capDeviceId });
+        services = (sRes && sRes.services) || [];
+      } catch (e) {
+        console.warn('getServices error, trying discoverServices:', e);
+      }
+
+      if (!services || services.length === 0) {
+        try {
+          await Ble.discoverServices({ deviceId: this.capDeviceId });
+          const sRes2 = await Ble.getServices({ deviceId: this.capDeviceId });
+          services = (sRes2 && sRes2.services) || [];
+        } catch (e2) {
+          console.warn('discoverServices error:', e2);
+        }
+      }
+
+      console.log('JK-BMS Discovered services count:', services.length);
+
+      let chosenService = null;
+      let chosenNotifyChar = null;
+      let chosenWriteChar = null;
+
+      // Search matching characteristic for JK-BMS:
+      // Pattern 1: Look for characteristic with 'ffe1' (standard JK BMS UART)
+      for (const s of services) {
+        const sUuid = (s.uuid || '').toLowerCase();
+        for (const c of (s.characteristics || [])) {
+          const cUuid = (c.uuid || '').toLowerCase();
+          if (cUuid.includes('ffe1') || (sUuid.includes('ffe0') && (c.properties?.notify || c.properties?.indicate))) {
+            chosenService = s.uuid;
+            chosenNotifyChar = c.uuid;
+            if (c.properties?.write || c.properties?.writeWithoutResponse) {
+              chosenWriteChar = c.uuid;
+            }
+            break;
+          }
+        }
+        if (chosenNotifyChar) break;
+      }
+
+      // Pattern 2: Look for 0xff01 or custom BMS characteristic with notify
+      if (!chosenNotifyChar) {
+        for (const s of services) {
+          const sUuid = (s.uuid || '').toLowerCase();
+          if (sUuid.includes('1800') || sUuid.includes('1801') || sUuid.includes('180a')) continue;
+          for (const c of (s.characteristics || [])) {
+            const cUuid = (c.uuid || '').toLowerCase();
+            const props = c.properties || {};
+            if (cUuid.includes('ff01') || cUuid.includes('ff02') || (sUuid.includes('ff00') && (props.notify || props.indicate))) {
+              chosenService = s.uuid;
+              chosenNotifyChar = c.uuid;
+              if (props.write || props.writeWithoutResponse) {
+                chosenWriteChar = c.uuid;
+              }
+              break;
+            }
+          }
+          if (chosenNotifyChar) break;
+        }
+      }
+
+      // Pattern 3: Any characteristic with Notify/Indicate on non-standard service
+      if (!chosenNotifyChar) {
+        for (const s of services) {
+          const sUuid = (s.uuid || '').toLowerCase();
+          if (sUuid.includes('1800') || sUuid.includes('1801') || sUuid.includes('180a')) continue;
+          for (const c of (s.characteristics || [])) {
+            const props = c.properties || {};
+            if (props.notify || props.indicate) {
+              chosenService = s.uuid;
+              chosenNotifyChar = c.uuid;
+              if (props.write || props.writeWithoutResponse) {
+                chosenWriteChar = c.uuid;
+              }
+              break;
+            }
+          }
+          if (chosenNotifyChar) break;
+        }
+      }
+
+      // Pattern 4: If write is separate (like Nordic UART TX and RX)
+      if (chosenService && !chosenWriteChar) {
+        const sObj = services.find(s => (s.uuid || '').toLowerCase() === chosenService.toLowerCase());
+        if (sObj) {
+          for (const c of (sObj.characteristics || [])) {
+            const props = c.properties || {};
+            if (props.write || props.writeWithoutResponse) {
+              chosenWriteChar = c.uuid;
+              break;
+            }
+          }
+        }
+      }
+
+      // Final fallback if discovery somehow yielded nothing
+      this.activeServiceUuid = chosenService || SERVICE_UUID_128;
+      this.activeNotifyUuid = chosenNotifyChar || CHAR_UUID_128;
+      this.activeWriteUuid = chosenWriteChar || this.activeNotifyUuid;
+
+      console.log('Active BLE Service:', this.activeServiceUuid, 'Notify:', this.activeNotifyUuid, 'Write:', this.activeWriteUuid);
+
+      // Disconnect listener
       await Ble.addListener(`disconnected|${this.capDeviceId}`, () => {
         this._onDisconnected();
       });
 
-      const notifKey = `notification|${this.capDeviceId}|${SERVICE_UUID_128}|${CHAR_UUID_128}`;
+      // Notification listener (Capacitor stores lowercase UUIDs in event map)
+      const notifKey = `notification|${this.capDeviceId}|${this.activeServiceUuid.toLowerCase()}|${this.activeNotifyUuid.toLowerCase()}`;
       await Ble.addListener(notifKey, (res) => {
         if (!res || !res.value) return;
         let bytes;
@@ -324,16 +435,18 @@
         }
       });
 
+      // Start notifications using discovered UUIDs
       await Ble.startNotifications({
         deviceId: this.capDeviceId,
-        service: SERVICE_UUID_128,
-        characteristic: CHAR_UUID_128,
+        service: this.activeServiceUuid,
+        characteristic: this.activeNotifyUuid,
       });
 
       this.connected = true;
       this._attempts = 0;
       this.onStatus('connected', this.capDeviceName);
 
+      // Trigger inquiry frame 0x97 & 0x96
       setTimeout(() => { this._send(0x97).catch(() => {}); }, 250);
       setTimeout(() => { this._send(0x96).catch(() => {}); }, 700);
     }
@@ -418,8 +531,8 @@
         }
         await Ble.write({
           deviceId: this.capDeviceId,
-          service: SERVICE_UUID_128,
-          characteristic: CHAR_UUID_128,
+          service: this.activeServiceUuid || SERVICE_UUID_128,
+          characteristic: this.activeWriteUuid || this.activeNotifyUuid || CHAR_UUID_128,
           value: hex,
         });
         return;

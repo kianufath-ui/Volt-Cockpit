@@ -625,10 +625,6 @@
     bleScanState.devices.clear();
     renderBleDeviceList();
 
-    const isGpsOn = await state.bms.isLocationEnabled();
-    const warn = $('#bleGpsWarning');
-    if (warn) warn.hidden = isGpsOn;
-
     startBleScan();
   }
 
@@ -638,18 +634,14 @@
     if (state.bms && state.bms.isCapacitor) {
       state.bms.stopNativeScan().catch(() => {});
     }
-    const rescanBtn = $('#bleRescanBtn');
-    if (rescanBtn) rescanBtn.classList.remove('is-scanning');
-    const badge = $('#bleStatusBadgeText');
-    if (badge) badge.textContent = t('bleReady') || 'READY';
+    const dot = $('#bleScanDot');
+    if (dot) dot.style.display = 'none';
   }
 
   async function startBleScan() {
     if (!state.bms || !state.bms.isCapacitor) return;
-    const rescanBtn = $('#bleRescanBtn');
-    if (rescanBtn) rescanBtn.classList.add('is-scanning');
-    const badge = $('#bleStatusBadgeText');
-    if (badge) badge.textContent = t('bleScanning') || 'SCANNING';
+    const dot = $('#bleScanDot');
+    if (dot) dot.style.display = 'block';
 
     const savedId = localStorage.getItem('volt_bms_device_id');
     const savedName = localStorage.getItem('volt_bms_device_name');
@@ -689,35 +681,24 @@
     } catch (err) {
       console.warn('startNativeScan error:', err);
       toast('Scan error: ' + (err.message || err));
-      if (rescanBtn) rescanBtn.classList.remove('is-scanning');
-      if (badge) badge.textContent = t('bleReady') || 'READY';
+      if (dot) dot.style.display = 'none';
     }
   }
 
   function renderBleDeviceList() {
     const listEl = $('#bleDeviceList');
     const emptyEl = $('#bleEmptyState');
-    const countEl = $('#bleFoundCount');
     if (!listEl) return;
 
     const allDevices = Array.from(bleScanState.devices.values());
-    const filterBmsOnly = $('#bleBmsOnlyFilter') && $('#bleBmsOnlyFilter').checked;
 
-    const filtered = allDevices.filter((d) => {
-      if (!filterBmsOnly) return true;
-      const lower = (d.name || '').toLowerCase();
-      return lower.includes('jk') || lower.includes('bms') || lower.includes('sepeda') || lower.includes('volt') || d.isLastPaired;
-    });
-
-    filtered.sort((a, b) => {
+    allDevices.sort((a, b) => {
       if (a.isLastPaired && !b.isLastPaired) return -1;
       if (!a.isLastPaired && b.isLastPaired) return 1;
       return (b.rssi || -99) - (a.rssi || -99);
     });
 
-    if (countEl) countEl.textContent = String(filtered.length);
-
-    if (filtered.length === 0) {
+    if (allDevices.length === 0) {
       listEl.innerHTML = '';
       if (emptyEl) emptyEl.style.display = 'flex';
       return;
@@ -726,38 +707,21 @@
     if (emptyEl) emptyEl.style.display = 'none';
 
     let html = '';
-    filtered.forEach((d) => {
-      const rssi = typeof d.rssi === 'number' ? d.rssi : -75;
-      let barLvl = 1;
-      if (rssi >= -65) barLvl = 4;
-      else if (rssi >= -75) barLvl = 3;
-      else if (rssi >= -85) barLvl = 2;
-
-      const lowerName = (d.name || '').toLowerCase();
-      const isJk = lowerName.includes('jk') || lowerName.includes('bms') || lowerName.includes('cangki') || lowerName.includes('sepeda');
-      const displayName = d.name || 'BLE Device (' + d.deviceId.slice(-5) + ')';
+    allDevices.forEach((d) => {
+      const displayName = d.name || ('BMS ' + d.deviceId.slice(-5));
+      const sub = d.deviceId + (d.rssi ? ' · ' + d.rssi + ' dBm' : '');
 
       html += `
-        <div class="ble-item" data-id="${escapeHtml(d.deviceId)}">
-          <div class="ble-item-left">
-            <div class="ble-signal-box">
-              <div class="ble-bars bar-lvl-${barLvl}">
-                <span></span><span></span><span></span><span></span>
-              </div>
-              <span class="ble-rssi">${rssi} dBm</span>
-            </div>
-            <div class="ble-item-meta">
-              <div class="ble-name-row">
-                <span class="ble-item-name">${escapeHtml(displayName)}</span>
-                ${isJk ? '<span class="ble-tag-jk">JK-BMS</span>' : ''}
-                ${d.isLastPaired ? '<span class="ble-tag-last">' + (t('bleLastUsed') || 'TERAKHIR') + '</span>' : ''}
-              </div>
-              <span class="ble-item-id">${escapeHtml(d.deviceId)}</span>
+        <div class="ble-row" data-id="${escapeHtml(d.deviceId)}">
+          <div class="ble-row-left">
+            <svg class="ble-row-ic" viewBox="0 0 24 24"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>
+            <div class="ble-row-info">
+              <span class="ble-row-name">${escapeHtml(displayName)}</span>
+              <span class="ble-row-sub">${escapeHtml(sub)}</span>
             </div>
           </div>
-          <button class="ble-btn-connect" type="button">
+          <button class="ble-row-btn" type="button">
             <span>${t('bleConnect') || 'CONNECT'}</span>
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
       `;
@@ -765,14 +729,14 @@
 
     listEl.innerHTML = html;
 
-    listEl.querySelectorAll('.ble-item').forEach((item) => {
+    listEl.querySelectorAll('.ble-row').forEach((item) => {
       item.addEventListener('click', async () => {
         const devId = item.getAttribute('data-id');
         const devObj = bleScanState.devices.get(devId);
         if (!devObj) return;
 
         item.classList.add('connecting');
-        const btnText = item.querySelector('.ble-btn-connect span');
+        const btnText = item.querySelector('.ble-row-btn span');
         if (btnText) btnText.textContent = t('bleConnecting') || 'CONNECTING...';
 
         try {
@@ -1194,12 +1158,6 @@
       renderBleDeviceList();
       startBleScan();
     });
-    on('#bleEnableGpsBtn', 'click', () => {
-      if (state.bms) state.bms.openLocationSettings();
-    });
-    on('#bleBmsOnlyFilter', 'change', () => {
-      renderBleDeviceList();
-    });
     on('#disconnectBtn', 'click', () => {
       if (state.bms) state.bms.disconnect();
     });
@@ -1211,8 +1169,6 @@
     on('#layoutToggleBtn', 'click', toggleLayoutMode);
     on('#themeBtnHeader', 'click', toggleTheme);
     on('#langToggleBtn', 'click', toggleLanguage);
-    on('#demoToggleBtn', 'click', toggleDemo);
-    on('#demoBadge', 'click', toggleDemo);
 
     on('#gpsBtn', 'click', () => {
       if (state.gps.active) stopGps();
