@@ -203,7 +203,7 @@
       }
       this._manual = false;
       this._attempts = 0;
-      this.onStatus('connecting', 'Mencari device...');
+      this.onStatus('connecting', 'Mencari BMS JK...');
 
       // 1. Prioritaskan Capacitor Native BLE jika running di APK Android Native
       if (this.isCapacitor) {
@@ -218,26 +218,95 @@
       const Ble = window.Capacitor.Plugins.BluetoothLe;
       await Ble.initialize();
 
-      // Opsi pencarian device
-      const options = scanAll
-        ? { optionalServices: [SERVICE_UUID_128] }
-        : { namePrefix: 'sepeda', optionalServices: [SERVICE_UUID_128] };
+      const savedId = localStorage.getItem('volt_bms_device_id');
+      const savedName = localStorage.getItem('volt_bms_device_name') || 'sepeda cangki';
 
-      let dev;
-      try {
-        dev = await Ble.requestDevice(options);
-      } catch (e) {
-        // Jika filter namePrefix tidak menemukan, coba tanpa filter
-        dev = await Ble.requestDevice({ optionalServices: [SERVICE_UUID_128] });
+      let targetDev = null;
+
+      // Scanning cerdas via requestLEScan (tanpa modal popup putih yang menghalangi)
+      this.onStatus('connecting', 'Scanning bluetooth...');
+
+      targetDev = await new Promise((resolve) => {
+        let timer = null;
+        let scanSub = null;
+        const foundList = [];
+
+        const cleanup = async () => {
+          if (timer) clearTimeout(timer);
+          try {
+            if (scanSub && typeof scanSub.remove === 'function') await scanSub.remove();
+            await Ble.stopLEScan();
+          } catch (_) {}
+        };
+
+        Ble.addListener('onScanResult', async (res) => {
+          if (!res || !res.device || !res.device.deviceId) return;
+          const devId = res.device.deviceId;
+          const devName = (res.device.name || res.localName || '').trim();
+          const devLower = devName.toLowerCase();
+
+          if (!foundList.some(d => d.deviceId === devId)) {
+            foundList.push({ deviceId: devId, name: devName || devId });
+          }
+
+          // Pencocokan otomatis (case-insensitive)
+          const isMatch = !scanAll && (
+            (savedId && devId === savedId) ||
+            devLower.includes('sepeda') ||
+            devLower.includes('cangki') ||
+            devLower.includes('jk') ||
+            devLower.includes('bms')
+          );
+
+          if (isMatch) {
+            await cleanup();
+            resolve({ deviceId: devId, name: devName || 'sepeda cangki' });
+          }
+        }).then(sub => {
+          scanSub = sub;
+          // Mulai scan tanpa filter agar semua paket BLE masuk
+          return Ble.requestLEScan({});
+        }).catch(err => {
+          console.warn('requestLEScan fallback:', err);
+          cleanup();
+          resolve(null);
+        });
+
+        // Batas waktu scan background 5 detik
+        timer = setTimeout(async () => {
+          await cleanup();
+          if (foundList.length > 0) {
+            const named = foundList.find(d => d.name && d.name !== d.deviceId);
+            resolve(named || foundList[0]);
+          } else {
+            resolve(null);
+          }
+        }, 5000);
+      });
+
+      // Jika background scan belum menemukan, buka dialog pemilih tanpa filter ketat
+      if (!targetDev) {
+        try {
+          this.onStatus('connecting', 'Pilih device...');
+          const dev = await Ble.requestDevice({});
+          if (dev && dev.deviceId) {
+            targetDev = { deviceId: dev.deviceId, name: dev.name || 'sepeda cangki' };
+          }
+        } catch (e) {
+          throw new Error('Device tidak ditemukan atau dibatalkan.');
+        }
       }
 
-      if (!dev || !dev.deviceId) {
-        throw new Error('Tidak ada perangkat yang dipilih');
+      if (!targetDev || !targetDev.deviceId) {
+        throw new Error('Tidak ada BMS yang ditemukan.');
       }
 
       this.isCap = true;
-      this.capDeviceId = dev.deviceId;
-      this.capDeviceName = dev.name || 'sepeda cangki';
+      this.capDeviceId = targetDev.deviceId;
+      this.capDeviceName = targetDev.name || 'sepeda cangki';
+
+      localStorage.setItem('volt_bms_device_id', this.capDeviceId);
+      localStorage.setItem('volt_bms_device_name', this.capDeviceName);
 
       this.onStatus('connecting', 'Menghubungkan ke ' + this.capDeviceName + '...');
 
@@ -269,7 +338,7 @@
         }
       });
 
-      // Mulai notifikasi
+      // Start notifications
       await Ble.startNotifications({
         deviceId: this.capDeviceId,
         service: SERVICE_UUID_128,
@@ -280,7 +349,7 @@
       this._attempts = 0;
       this.onStatus('connected', this.capDeviceName);
 
-      // Kirim inquiry frame 0x97 & 0x96
+      // Trigger inquiry frame 0x97 & 0x96
       setTimeout(() => { this._send(0x97).catch(() => {}); }, 250);
       setTimeout(() => { this._send(0x96).catch(() => {}); }, 700);
     }
