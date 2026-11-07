@@ -1411,6 +1411,8 @@
     }
   }
 
+  let currentShowingAlertKey = null;
+
   function showHudAlert(alertItem) {
     if (!window.AlertEngine) return;
     const cfg = window.AlertEngine.getSettings();
@@ -1421,27 +1423,40 @@
     const sub = $('#haSub');
     if (!banner || !title || !sub) return;
 
-    banner.className = 'hud-alert-banner ' + (alertItem.severity === 'CRITICAL' ? 'sev-crit' : alertItem.severity === 'WARNING' ? 'sev-warn' : 'sev-info');
+    currentShowingAlertKey = alertItem.key;
+
+    const sevClass = (alertItem.severity === 'CRITICAL' ? 'sev-crit' : alertItem.severity === 'WARNING' ? 'sev-warn' : 'sev-info');
+    banner.className = 'hud-alert-banner ha-visible ' + sevClass;
     title.textContent = alertItem.title;
     sub.textContent = alertItem.valStr + (alertItem.thresholdStr ? ' · ' + alertItem.thresholdStr : '');
 
     banner.hidden = false;
 
     if (hudAlertTimer) clearTimeout(hudAlertTimer);
-    if (alertItem.severity !== 'CRITICAL') {
-      hudAlertTimer = setTimeout(() => {
-        banner.hidden = true;
-      }, 4500);
-    }
+    // Auto-dismiss after 5s so rider can simply ignore it while riding
+    hudAlertTimer = setTimeout(() => {
+      hideHudAlert();
+    }, 5000);
   }
 
-  function hideHudAlert() {
+  function hideHudAlert(e) {
+    if (e) {
+      if (typeof e.stopPropagation === 'function') e.stopPropagation();
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+    }
     const banner = $('#hudAlertBanner');
-    if (banner) banner.hidden = true;
+    if (banner) {
+      banner.hidden = true;
+      banner.classList.remove('ha-visible');
+    }
     if (hudAlertTimer) {
       clearTimeout(hudAlertTimer);
       hudAlertTimer = null;
     }
+    if (currentShowingAlertKey && window.AlertEngine) {
+      window.AlertEngine.dismissAlert(currentShowingAlertKey);
+    }
+    currentShowingAlertKey = null;
   }
 
   function bindUi() {
@@ -1546,7 +1561,16 @@
       });
     });
 
-    on('#haCloseBtn', 'click', hideHudAlert);
+    const haBanner = $('#hudAlertBanner');
+    const haClose = $('#haCloseBtn');
+    if (haClose) {
+      haClose.addEventListener('click', hideHudAlert);
+      haClose.addEventListener('touchend', hideHudAlert, { passive: false });
+    }
+    if (haBanner) {
+      haBanner.addEventListener('click', hideHudAlert);
+      haBanner.addEventListener('touchend', hideHudAlert, { passive: false });
+    }
 
     if (window.AlertEngine) {
       window.AlertEngine.addListener('alert', (alertItem) => {

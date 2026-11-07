@@ -2354,29 +2354,60 @@ main { position: relative; flex: 1; min-height: 0; }
    ============================================================ */
 
 /* Floating HUD Alert Banner */
+.hud-alert-banner[hidden] {
+  display: none !important;
+}
+
 .hud-alert-banner {
+  display: none;
   position: absolute;
-  top: max(env(safe-area-inset-top, 0px), 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 12;
-  display: flex;
+  top: max(env(safe-area-inset-top, 0px), 14px);
+  /* Di Mode Map: posisikan di kiri atas agar tidak menutupi speedometer tengah */
+  left: max(env(safe-area-inset-left, 0px), 32px);
+  transform: none;
+  z-index: 15;
   align-items: center;
   gap: 10px;
-  padding: 6px 14px;
+  padding: 5px 6px 5px 12px;
   border-radius: 20px;
   background: rgba(21, 24, 28, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  max-width: 92vw;
+  max-width: calc(100vw - 64px);
   animation: hudBannerDrop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hud-alert-banner.ha-visible {
+  display: flex !important;
+}
+
+/* Di Mode No Maps (Telemetry Mode): posisikan di tengah atas */
+.dash.mode-telemetry .hud-alert-banner,
+.mode-telemetry .hud-alert-banner {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
 }
 
 @keyframes hudBannerDrop {
-  from { opacity: 0; transform: translate(-50%, -10px) scale(0.96); }
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.dash.mode-telemetry .hud-alert-banner,
+.mode-telemetry .hud-alert-banner {
+  animation: hudBannerDropCenter 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes hudBannerDropCenter {
+  from { opacity: 0; transform: translate(-50%, -8px) scale(0.96); }
   to { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
 
@@ -2437,22 +2468,27 @@ main { position: relative; flex: 1; min-height: 0; }
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
   border-radius: 50%;
   border: none;
   background: rgba(255, 255, 255, 0.08);
   color: #9fb2bf;
-  font-size: 13px;
-  line-height: 1;
   cursor: pointer;
   padding: 0;
-  margin-left: 2px;
+  margin-left: 4px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: all 0.12s;
 }
 
-.ha-close:hover {
-  background: rgba(255, 255, 255, 0.18);
+.ha-close:hover,
+.ha-close:active {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  transform: scale(0.92);
+}
   color: #fff;
 }
 

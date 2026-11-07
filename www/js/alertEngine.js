@@ -60,6 +60,7 @@
   let history = loadHistory();
   const activeAlerts = new Map(); // key -> alert object
   const lastTriggeredTime = new Map(); // key -> timestamp ms
+  const dismissedAlertKeys = new Set(); // keys dismissed by user during active condition
   const listeners = {
     alert: [],
     resolve: [],
@@ -257,9 +258,22 @@
   }
 
   /* ---------------- Alert Trigger & Resolution ---------------- */
+  function dismissAlert(key) {
+    if (key) {
+      dismissedAlertKeys.add(key);
+    } else {
+      activeAlerts.forEach((_, k) => dismissedAlertKeys.add(k));
+    }
+  }
+
   function triggerAlert(alertDef) {
     const { key, title, category, severity, valStr, thresholdStr, rawValue } = alertDef;
     const now = Date.now();
+
+    // If dismissed by user, do not show or chime while active condition persists
+    if (dismissedAlertKeys.has(key)) {
+      return activeAlerts.get(key) || null;
+    }
 
     // Cooldown check for repetitive warnings
     const cooldownMs = (alertDef.cooldownSec || 12) * 1000;
@@ -305,6 +319,7 @@
   }
 
   function resolveAlert(key, resolutionNote) {
+    dismissedAlertKeys.delete(key);
     if (!activeAlerts.has(key)) return null;
 
     const alertItem = activeAlerts.get(key);
@@ -757,7 +772,11 @@
     removeListener(event, fn) {
       removeListener(event, fn);
     },
+    dismissAlert(key) {
+      dismissAlert(key);
+    },
     dismissActiveAlert(key) {
+      dismissAlert(key);
       if (activeAlerts.has(key)) {
         activeAlerts.delete(key);
         emit('resolve', { key, dismissedManually: true });
