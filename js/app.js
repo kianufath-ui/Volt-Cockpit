@@ -581,42 +581,237 @@
       onStatus: onBmsStatus,
       onError: (e) => console.warn('BMS parse error', e),
     });
+    const savedName = localStorage.getItem('volt_bms_device_name') || 'Volt BMS';
+    const bpn = $('#bmsPanelName'); if (bpn) bpn.textContent = savedName;
   }
 
   function onBmsStatus(status, text) {
     state.bmsStatus = status;
+    const displayName = text || localStorage.getItem('volt_bms_device_name') || 'Volt BMS';
     if (status === 'connected') {
       setPill('bms', 'on', 'BMS');
-      $('#bmsName').textContent = text || 'BMS';
-      const cl = $('#connectLabel'); if (cl) cl.textContent = 'Disconnect';
-      toast('BMS terhubung: ' + (text || ''));
+      const bn = $('#bmsName'); if (bn) bn.textContent = displayName;
+      const bpn = $('#bmsPanelName'); if (bpn) bpn.textContent = displayName;
+      const cl = $('#connectLabel'); if (cl) cl.textContent = t('disconnectBms') || 'Disconnect';
+      toast((t('toastBmsConnected') || 'BMS terhubung: ') + displayName);
     } else if (status === 'connecting') {
       setPill('bms', 'warn', 'BMS…');
     } else if (status === 'error') {
       setPill('bms', 'err', 'BMS');
-      toast('BMS error: ' + (text || ''));
+      toast((t('toastBmsError') || 'BMS error: ') + (text || ''));
     } else {
       setPill('bms', 'off', 'BMS');
-      $('#bmsName').textContent = 'belum terhubung';
-      const cl2 = $('#connectLabel'); if (cl2) cl2.textContent = 'Connect BMS';
+      const bn = $('#bmsName'); if (bn) bn.textContent = t('bmsNotConnected') || 'belum terhubung';
+      const cl2 = $('#connectLabel'); if (cl2) cl2.textContent = t('connectBms') || 'Connect BMS';
     }
   }
 
-  async function connectBms(scanAll) {
-    if (!state.bms) { toast('Web Bluetooth tidak tersedia'); return; }
-    if (state.bmsStatus === 'connected') { toast('BMS sudah terhubung'); return; }
+  /* ---------------- Universal Bluetooth Scanner Modal ---------------- */
+  const bleScanState = {
+    devices: new Map(),
+    renderPending: false
+  };
+
+  async function openBleModal() {
+    if (!state.bms || !state.bms.isCapacitor) {
+      connectBmsWeb();
+      return;
+    }
+
+    const modal = $('#bleModal');
+    if (!modal) return;
+    modal.removeAttribute('hidden');
+
+    bleScanState.devices.clear();
+    renderBleDeviceList();
+
+    const isGpsOn = await state.bms.isLocationEnabled();
+    const warn = $('#bleGpsWarning');
+    if (warn) warn.hidden = isGpsOn;
+
+    startBleScan();
+  }
+
+  function closeBleModal() {
+    const modal = $('#bleModal');
+    if (modal) modal.setAttribute('hidden', '');
+    if (state.bms && state.bms.isCapacitor) {
+      state.bms.stopNativeScan().catch(() => {});
+    }
+    const rescanBtn = $('#bleRescanBtn');
+    if (rescanBtn) rescanBtn.classList.remove('is-scanning');
+    const badge = $('#bleStatusBadgeText');
+    if (badge) badge.textContent = t('bleReady') || 'READY';
+  }
+
+  async function startBleScan() {
+    if (!state.bms || !state.bms.isCapacitor) return;
+    const rescanBtn = $('#bleRescanBtn');
+    if (rescanBtn) rescanBtn.classList.add('is-scanning');
+    const badge = $('#bleStatusBadgeText');
+    if (badge) badge.textContent = t('bleScanning') || 'SCANNING';
+
+    const savedId = localStorage.getItem('volt_bms_device_id');
+    const savedName = localStorage.getItem('volt_bms_device_name');
+    if (savedId) {
+      bleScanState.devices.set(savedId, {
+        deviceId: savedId,
+        name: savedName || 'Volt BMS',
+        rssi: -62,
+        isLastPaired: true,
+        lastSeen: Date.now()
+      });
+      renderBleDeviceList();
+    }
+
     try {
-      await state.bms.connect(!!scanAll);
+      await state.bms.startNativeScan((dev) => {
+        const id = dev.deviceId;
+        const existing = bleScanState.devices.get(id);
+        const isLast = (savedId && id === savedId);
+
+        bleScanState.devices.set(id, {
+          deviceId: id,
+          name: dev.name || (existing && existing.name) || '',
+          rssi: dev.rssi !== null ? dev.rssi : (existing ? existing.rssi : -75),
+          isLastPaired: isLast,
+          lastSeen: Date.now()
+        });
+
+        if (!bleScanState.renderPending) {
+          bleScanState.renderPending = true;
+          requestAnimationFrame(() => {
+            renderBleDeviceList();
+            bleScanState.renderPending = false;
+          });
+        }
+      });
+    } catch (err) {
+      console.warn('startNativeScan error:', err);
+      toast('Scan error: ' + (err.message || err));
+      if (rescanBtn) rescanBtn.classList.remove('is-scanning');
+      if (badge) badge.textContent = t('bleReady') || 'READY';
+    }
+  }
+
+  function renderBleDeviceList() {
+    const listEl = $('#bleDeviceList');
+    const emptyEl = $('#bleEmptyState');
+    const countEl = $('#bleFoundCount');
+    if (!listEl) return;
+
+    const allDevices = Array.from(bleScanState.devices.values());
+    const filterBmsOnly = $('#bleBmsOnlyFilter') && $('#bleBmsOnlyFilter').checked;
+
+    const filtered = allDevices.filter((d) => {
+      if (!filterBmsOnly) return true;
+      const lower = (d.name || '').toLowerCase();
+      return lower.includes('jk') || lower.includes('bms') || lower.includes('sepeda') || lower.includes('volt') || d.isLastPaired;
+    });
+
+    filtered.sort((a, b) => {
+      if (a.isLastPaired && !b.isLastPaired) return -1;
+      if (!a.isLastPaired && b.isLastPaired) return 1;
+      return (b.rssi || -99) - (a.rssi || -99);
+    });
+
+    if (countEl) countEl.textContent = String(filtered.length);
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = '';
+      if (emptyEl) emptyEl.style.display = 'flex';
+      return;
+    }
+
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    let html = '';
+    filtered.forEach((d) => {
+      const rssi = typeof d.rssi === 'number' ? d.rssi : -75;
+      let barLvl = 1;
+      if (rssi >= -65) barLvl = 4;
+      else if (rssi >= -75) barLvl = 3;
+      else if (rssi >= -85) barLvl = 2;
+
+      const lowerName = (d.name || '').toLowerCase();
+      const isJk = lowerName.includes('jk') || lowerName.includes('bms') || lowerName.includes('cangki') || lowerName.includes('sepeda');
+      const displayName = d.name || 'BLE Device (' + d.deviceId.slice(-5) + ')';
+
+      html += `
+        <div class="ble-item" data-id="${escapeHtml(d.deviceId)}">
+          <div class="ble-item-left">
+            <div class="ble-signal-box">
+              <div class="ble-bars bar-lvl-${barLvl}">
+                <span></span><span></span><span></span><span></span>
+              </div>
+              <span class="ble-rssi">${rssi} dBm</span>
+            </div>
+            <div class="ble-item-meta">
+              <div class="ble-name-row">
+                <span class="ble-item-name">${escapeHtml(displayName)}</span>
+                ${isJk ? '<span class="ble-tag-jk">JK-BMS</span>' : ''}
+                ${d.isLastPaired ? '<span class="ble-tag-last">' + (t('bleLastUsed') || 'TERAKHIR') + '</span>' : ''}
+              </div>
+              <span class="ble-item-id">${escapeHtml(d.deviceId)}</span>
+            </div>
+          </div>
+          <button class="ble-btn-connect" type="button">
+            <span>${t('bleConnect') || 'CONNECT'}</span>
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      `;
+    });
+
+    listEl.innerHTML = html;
+
+    listEl.querySelectorAll('.ble-item').forEach((item) => {
+      item.addEventListener('click', async () => {
+        const devId = item.getAttribute('data-id');
+        const devObj = bleScanState.devices.get(devId);
+        if (!devObj) return;
+
+        item.classList.add('connecting');
+        const btnText = item.querySelector('.ble-btn-connect span');
+        if (btnText) btnText.textContent = t('bleConnecting') || 'CONNECTING...';
+
+        try {
+          const finalName = devObj.name || ('BMS ' + devObj.deviceId.slice(-5));
+          await state.bms.connectToDevice({
+            deviceId: devObj.deviceId,
+            name: finalName
+          });
+          closeBleModal();
+        } catch (err) {
+          console.error('Connection failed:', err);
+          item.classList.remove('connecting');
+          if (btnText) btnText.textContent = t('bleConnect') || 'CONNECT';
+          toast((t('toastConnectFailed') || 'Gagal terhubung: ') + (err.message || err));
+        }
+      });
+    });
+  }
+
+  async function connectBmsWeb() {
+    if (!state.bms) return;
+    try {
+      await state.bms._connectWebBluetooth(true);
     } catch (e) {
       const name = (e && e.name) || '';
       if (name === 'NotFoundError') {
-        toast('Device nggak ketemu. Coba tombol "Scan semua" di tab BMS.');
+        toast('Pencarian dibatalkan atau perangkat tidak dipilih.');
       } else if (name === 'SecurityError') {
-        toast('Diblokir browser. Pastikan buka via HTTPS/localhost.');
+        toast('Diblokir browser. Pastikan buka via HTTPS atau localhost.');
       } else {
-        toast('Gagal connect: ' + ((e && e.message) || e));
+        toast((t('toastConnectFailed') || 'Gagal connect: ') + ((e && e.message) || e));
       }
     }
+  }
+
+  function escapeHtml(str) {
+    return String(str || '').replace(/[&<>"']/g, (m) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[m]);
   }
 
   function onBmsData(d) {
@@ -987,11 +1182,24 @@
 
     on('#connectBtn', 'click', () => {
       if (state.bmsStatus === 'connected' && state.bms) state.bms.disconnect();
-      else connectBms(false);
+      else openBleModal();
     });
-    // bmsPill click removed — handled by connectBtn
-    // gpsPill click removed — handled by gpsBtn
-    on('#scanAllBtn', 'click', () => connectBms(true));
+    on('#bleSelectBtn', 'click', () => openBleModal());
+    on('#scanAllBtn', 'click', () => openBleModal());
+    on('#bleCloseBtn', 'click', closeBleModal);
+    on('#bleCancelBtn', 'click', closeBleModal);
+    on('#bleModalBackdrop', 'click', closeBleModal);
+    on('#bleRescanBtn', 'click', () => {
+      bleScanState.devices.clear();
+      renderBleDeviceList();
+      startBleScan();
+    });
+    on('#bleEnableGpsBtn', 'click', () => {
+      if (state.bms) state.bms.openLocationSettings();
+    });
+    on('#bleBmsOnlyFilter', 'change', () => {
+      renderBleDeviceList();
+    });
     on('#disconnectBtn', 'click', () => {
       if (state.bms) state.bms.disconnect();
     });

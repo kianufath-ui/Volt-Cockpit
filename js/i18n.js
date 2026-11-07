@@ -149,7 +149,26 @@ window.I18N = {
     toastFollowOff: 'Map follow OFF',
     toastSportsMode: 'Sport Mode',
     toastEcoMode: 'Eco Mode',
-    toastLangChanged: 'Language changed to English'
+    toastLangChanged: 'Language changed to English',
+
+    // Bluetooth Scanner
+    bleScanTitle: 'BLUETOOTH BMS SCANNER',
+    bleScanSubtitle: 'SELECT BLUETOOTH DEVICE FOR COCKPIT TELEMETRY',
+    bleScanning: 'SCANNING',
+    bleReady: 'READY',
+    bleDevicesFound: 'devices discovered',
+    bleBmsOnly: 'Filter JK-BMS only',
+    bleSearchingTitle: 'Scanning Nearby Bluetooth Frequencies...',
+    bleSearchingDesc: 'Ensure your BMS battery is powered on and within range.',
+    bleRescan: 'Rescan',
+    bleCancel: 'Close',
+    bleConnect: 'CONNECT',
+    bleConnecting: 'CONNECTING...',
+    bleGpsReqTitle: 'Location (GPS) Required',
+    bleGpsReqDesc: 'Android requires Location services to scan for nearby Bluetooth LE devices.',
+    bleOpenSettings: 'Settings',
+    bleLastUsed: 'LAST PAIRED',
+    bleScanDevice: 'Select / Change Device'
   },
   id: {
     langCode: 'id',
@@ -289,6 +308,25 @@ window.I18N = {
     toastFollowOff: 'Ikuti kendaraan NONAKTIF',
     toastSportsMode: 'Mode Sport',
     toastEcoMode: 'Mode Eco',
-    toastLangChanged: 'Bahasa diubah ke Bahasa Indonesia'
+    toastLangChanged: 'Bahasa diubah ke Bahasa Indonesia',
+
+    // Bluetooth Scanner
+    bleScanTitle: 'SCANNER BLUETOOTH BMS',
+    bleScanSubtitle: 'PILIH PERANGKAT BLUETOOTH UNTUK TELEMETRI KOKPIT',
+    bleScanning: 'MEMINDAI',
+    bleReady: 'SIAP',
+    bleDevicesFound: 'perangkat ditemukan',
+    bleBmsOnly: 'Hanya JK-BMS',
+    bleSearchingTitle: 'Mencari Sinyal Bluetooth Sekitar...',
+    bleSearchingDesc: 'Pastikan BMS baterai menyala dan berada dalam jangkauan sinyal.',
+    bleRescan: 'Pindai Ulang',
+    bleCancel: 'Tutup',
+    bleConnect: 'HUBUNGKAN',
+    bleConnecting: 'MENGHUBUNGKAN...',
+    bleGpsReqTitle: 'Lokasi (GPS) Perlu Aktif',
+    bleGpsReqDesc: 'Sistem Android memerlukan layanan lokasi agar dapat memindai Bluetooth sekitar.',
+    bleOpenSettings: 'Pengaturan',
+    bleLastUsed: 'TERAKHIR DIPAKAI',
+    bleScanDevice: 'Pilih / Ganti Perangkat'
   }
 };

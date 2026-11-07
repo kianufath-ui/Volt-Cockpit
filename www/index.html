@@ -289,9 +289,14 @@
             <div class="cp-sh" data-i18n="battery">Battery</div>
             <div class="cp-row">
               <svg class="cp-ic" viewBox="0 0 24 24"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>
-              <span class="cp-rl brand-name">sepeda cangki</span>
+              <span class="cp-rl brand-name" id="bmsPanelName">Volt BMS</span>
               <span id="bmsPill" class="cp-dot off"></span>
             </div>
+            <button id="bleSelectBtn" class="cp-row cp-act">
+              <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4M3.5 3.5a12 12 0 0 0 0 17M20.5 3.5a12 12 0 0 1 0 17"/></svg>
+              <span class="cp-rl" data-i18n="bleScanDevice">Select / Change Device</span>
+              <span class="cp-tag" id="bleScanTag">SCAN</span>
+            </button>
             <button id="setDetailBtn" class="cp-row cp-act">
               <svg class="cp-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="16" height="10" rx="1"/><path d="M22 11v2"/></svg>
               <span class="cp-rl" data-i18n="bmsDetails">BMS Details</span>
@@ -403,6 +408,76 @@
       <button id="installBtn" class="install" hidden>Install to Home Screen</button>
     </section>
   </main>
+
+  <!-- ================= BLUETOOTH BMS SCANNER MODAL ================= -->
+  <div id="bleModal" class="ble-modal" role="dialog" aria-modal="true" aria-labelledby="bleModalTitle" hidden>
+    <div class="ble-modal-backdrop" id="bleModalBackdrop"></div>
+    <div class="ble-modal-card">
+      <div class="ble-radar-line" id="bleRadarLine"></div>
+      
+      <div class="ble-head">
+        <div class="ble-head-info">
+          <div class="ble-title-row">
+            <svg class="ble-head-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 7l10 10-5 5V2l5 5L7 17"/>
+            </svg>
+            <h3 id="bleModalTitle" class="ble-title" data-i18n="bleScanTitle">BLUETOOTH BMS SCANNER</h3>
+            <span class="ble-badge-live" id="bleStatusBadge">
+              <span class="ble-pulse-dot"></span>
+              <span id="bleStatusBadgeText" data-i18n="bleScanning">SCANNING</span>
+            </span>
+          </div>
+          <p class="ble-subtitle" data-i18n="bleScanSubtitle">PILIH PERANGKAT BLUETOOTH UNTUK TELEMETRI KOKPIT</p>
+        </div>
+        <button id="bleCloseBtn" class="ble-close-btn" title="Close" aria-label="Close">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div id="bleGpsWarning" class="ble-warning" hidden>
+        <svg class="ble-warn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="ble-warn-text">
+          <strong data-i18n="bleGpsReqTitle">GPS / Lokasi HP Perlu Aktif</strong>
+          <span data-i18n="bleGpsReqDesc">Android memerlukan izin lokasi agar Bluetooth LE dapat memindai perangkat.</span>
+        </div>
+        <button id="bleEnableGpsBtn" class="ble-warn-btn" data-i18n="bleOpenSettings">Pengaturan</button>
+      </div>
+
+      <div class="ble-filter-bar">
+        <div class="ble-count-tag">
+          <b id="bleFoundCount">0</b> <span data-i18n="bleDevicesFound">perangkat terdeteksi</span>
+        </div>
+        <label class="ble-filter-switch">
+          <input type="checkbox" id="bleBmsOnlyFilter">
+          <span class="ble-switch-track"></span>
+          <span class="ble-switch-label" data-i18n="bleBmsOnly">Hanya JK-BMS</span>
+        </label>
+      </div>
+
+      <div class="ble-list-wrap">
+        <div id="bleDeviceList" class="ble-device-list"></div>
+
+        <div id="bleEmptyState" class="ble-empty">
+          <div class="ble-radar-pulse">
+            <div class="radar-circle rc-1"></div>
+            <div class="radar-circle rc-2"></div>
+            <div class="radar-circle rc-3"></div>
+            <svg class="radar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>
+          </div>
+          <p class="ble-empty-title" data-i18n="bleSearchingTitle">Mencari Sinyal Bluetooth Sekitar...</p>
+          <p class="ble-empty-desc" data-i18n="bleSearchingDesc">Pastikan BMS baterai menyala dan berada dalam jangkauan sinyal.</p>
+        </div>
+      </div>
+
+      <div class="ble-foot">
+        <button id="bleRescanBtn" class="ble-btn-secondary">
+          <svg class="ble-btn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          <span data-i18n="bleRescan">Pindai Ulang</span>
+        </button>
+        <button id="bleCancelBtn" class="ble-btn-ghost" data-i18n="bleCancel">Tutup</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast" class="toast"></div>
 </div>

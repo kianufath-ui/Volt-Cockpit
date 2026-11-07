@@ -176,8 +176,10 @@
 
       // Capacitor Native BLE state
       this.isCap = false;
-      this.capDeviceId = null;
-      this.capDeviceName = 'sepeda cangki';
+      this.capDeviceId = localStorage.getItem('volt_bms_device_id') || null;
+      this.capDeviceName = localStorage.getItem('volt_bms_device_name') || 'Volt BMS';
+      this._scanListener = null;
+      this.isScanning = false;
     }
 
     get isCapacitor() {
@@ -194,133 +196,115 @@
 
     get deviceName() {
       if (this.isCap && this.capDeviceName) return this.capDeviceName;
-      return (this.device && this.device.name) || 'BMS';
+      return (this.device && this.device.name) || localStorage.getItem('volt_bms_device_name') || 'Volt BMS';
     }
 
-    async connect(scanAll) {
-      if (!this.supported) {
-        throw new Error('Bluetooth tidak didukung pada browser/perangkat ini.');
+    async isLocationEnabled() {
+      if (!this.isCapacitor) return true;
+      try {
+        const Ble = window.Capacitor.Plugins.BluetoothLe;
+        const res = await Ble.isLocationEnabled();
+        return !!(res && res.value);
+      } catch (_) {
+        return true;
       }
-      this._manual = false;
-      this._attempts = 0;
-      this.onStatus('connecting', 'Mencari BMS JK...');
-
-      // 1. Prioritaskan Capacitor Native BLE jika running di APK Android Native
-      if (this.isCapacitor) {
-        return this._connectCapacitor(scanAll);
-      }
-
-      // 2. Fallback ke Web Bluetooth browser jika running di Chrome HTTPS
-      return this._connectWebBluetooth(scanAll);
     }
 
-    async _connectCapacitor(scanAll) {
+    async openLocationSettings() {
+      if (!this.isCapacitor) return;
+      try {
+        const Ble = window.Capacitor.Plugins.BluetoothLe;
+        await Ble.openLocationSettings();
+      } catch (_) {}
+    }
+
+    async openBluetoothSettings() {
+      if (!this.isCapacitor) return;
+      try {
+        const Ble = window.Capacitor.Plugins.BluetoothLe;
+        await Ble.openBluetoothSettings();
+      } catch (_) {}
+    }
+
+    async startNativeScan(onDevice) {
+      if (!this.isCapacitor) {
+        throw new Error('Native BLE scanning hanya tersedia pada aplikasi Android.');
+      }
       const Ble = window.Capacitor.Plugins.BluetoothLe;
-      await Ble.initialize();
+      await Ble.initialize({ androidNeverForLocation: false });
 
-      const savedId = localStorage.getItem('volt_bms_device_id');
-      const savedName = localStorage.getItem('volt_bms_device_name') || 'sepeda cangki';
+      if (typeof Ble.requestPermissions === 'function') {
+        try { await Ble.requestPermissions(); } catch (e) { console.warn('requestPermissions:', e); }
+      }
 
-      let targetDev = null;
-
-      // Scanning cerdas via requestLEScan (tanpa modal popup putih yang menghalangi)
-      this.onStatus('connecting', 'Scanning bluetooth...');
-
-      targetDev = await new Promise(async (resolve) => {
-        let timer = null;
-        let scanSub = null;
-        const foundList = [];
-
-        const cleanup = async () => {
-          if (timer) clearTimeout(timer);
-          try {
-            if (scanSub && typeof scanSub.remove === 'function') await scanSub.remove();
-            await Ble.stopLEScan();
-          } catch (_) {}
-        };
-
-        try {
-          scanSub = await Ble.addListener('onScanResult', async (res) => {
-            if (!res || !res.device || !res.device.deviceId) return;
-            const devId = res.device.deviceId;
-            const devName = (res.device.name || res.localName || '').trim();
-            const devLower = devName.toLowerCase();
-
-            if (!foundList.some(d => d.deviceId === devId)) {
-              foundList.push({ deviceId: devId, name: devName || devId });
-            }
-
-            // Pencocokan otomatis (case-insensitive)
-            const isMatch = !scanAll && (
-              (savedId && devId === savedId) ||
-              devLower.includes('sepeda') ||
-              devLower.includes('cangki') ||
-              devLower.includes('jk') ||
-              devLower.includes('bms')
-            );
-
-            if (isMatch) {
-              await cleanup();
-              resolve({ deviceId: devId, name: devName || 'sepeda cangki' });
-            }
-          });
-
-          // Mulai scan tanpa filter agar semua paket BLE masuk
-          await Ble.requestLEScan({});
-        } catch (err) {
-          console.warn('requestLEScan fallback:', err);
-          await cleanup();
-          resolve(null);
-          return;
+      try {
+        const isEn = await Ble.isEnabled();
+        if (isEn && !isEn.value && typeof Ble.requestEnable === 'function') {
+          await Ble.requestEnable();
         }
+      } catch (_) {}
 
-        // Batas waktu scan background 5 detik
-        timer = setTimeout(async () => {
-          await cleanup();
-          if (foundList.length > 0) {
-            const named = foundList.find(d => d.name && d.name !== d.deviceId);
-            resolve(named || foundList[0]);
-          } else {
-            resolve(null);
-          }
-        }, 5000);
+      await this.stopNativeScan();
+
+      this._scanListener = await Ble.addListener('onScanResult', (res) => {
+        if (!res || !res.device) return;
+        const devId = res.device.deviceId || res.device.address;
+        if (!devId) return;
+        const name = (res.device.name || res.localName || '').trim();
+        const rssi = typeof res.rssi === 'number' ? res.rssi : null;
+        if (typeof onDevice === 'function') {
+          onDevice({
+            deviceId: devId,
+            name: name,
+            rssi: rssi,
+            raw: res
+          });
+        }
       });
 
-      // Jika background scan belum menemukan, buka dialog pemilih tanpa filter ketat
-      if (!targetDev) {
-        try {
-          this.onStatus('connecting', 'Pilih device...');
-          const dev = await Ble.requestDevice({});
-          if (dev && dev.deviceId) {
-            targetDev = { deviceId: dev.deviceId, name: dev.name || 'sepeda cangki' };
-          }
-        } catch (e) {
-          throw new Error('Device tidak ditemukan atau dibatalkan.');
-        }
+      await Ble.requestLEScan({ allowDuplicates: true });
+      this.isScanning = true;
+    }
+
+    async stopNativeScan() {
+      if (!this.isCapacitor) return;
+      const Ble = window.Capacitor.Plugins.BluetoothLe;
+      if (this._scanListener && typeof this._scanListener.remove === 'function') {
+        try { await this._scanListener.remove(); } catch (_) {}
+        this._scanListener = null;
+      }
+      try {
+        await Ble.stopLEScan();
+      } catch (_) {}
+      this.isScanning = false;
+    }
+
+    async connectToDevice(targetDev) {
+      if (!targetDev || !targetDev.deviceId) {
+        throw new Error('Device tidak valid.');
       }
 
-      if (!targetDev || !targetDev.deviceId) {
-        throw new Error('Tidak ada BMS yang ditemukan.');
-      }
+      await this.stopNativeScan();
 
       this.isCap = true;
       this.capDeviceId = targetDev.deviceId;
-      this.capDeviceName = targetDev.name || 'sepeda cangki';
+      this.capDeviceName = targetDev.name || 'JK-BMS (' + targetDev.deviceId.slice(-5) + ')';
 
       localStorage.setItem('volt_bms_device_id', this.capDeviceId);
       localStorage.setItem('volt_bms_device_name', this.capDeviceName);
 
       this.onStatus('connecting', 'Menghubungkan ke ' + this.capDeviceName + '...');
 
-      // Connect GATT
+      const Ble = window.Capacitor.Plugins.BluetoothLe;
+
+      try { await Ble.disconnect({ deviceId: this.capDeviceId }); } catch (_) {}
+
       await Ble.connect({ deviceId: this.capDeviceId });
 
-      // Disconnect listener
       await Ble.addListener(`disconnected|${this.capDeviceId}`, () => {
         this._onDisconnected();
       });
 
-      // Notification listener
       const notifKey = `notification|${this.capDeviceId}|${SERVICE_UUID_128}|${CHAR_UUID_128}`;
       await Ble.addListener(notifKey, (res) => {
         if (!res || !res.value) return;
@@ -340,7 +324,6 @@
         }
       });
 
-      // Start notifications
       await Ble.startNotifications({
         deviceId: this.capDeviceId,
         service: SERVICE_UUID_128,
@@ -351,19 +334,50 @@
       this._attempts = 0;
       this.onStatus('connected', this.capDeviceName);
 
-      // Trigger inquiry frame 0x97 & 0x96
       setTimeout(() => { this._send(0x97).catch(() => {}); }, 250);
       setTimeout(() => { this._send(0x96).catch(() => {}); }, 700);
     }
 
+    async connect(scanAll) {
+      if (!this.supported) {
+        throw new Error('Bluetooth tidak didukung pada browser/perangkat ini.');
+      }
+      this._manual = false;
+      this._attempts = 0;
+
+      // 1. Jika Capacitor, coba direct reconnect ke device tersimpan
+      if (this.isCapacitor) {
+        const savedId = localStorage.getItem('volt_bms_device_id');
+        const savedName = localStorage.getItem('volt_bms_device_name');
+        if (savedId && !scanAll) {
+          try {
+            await this.connectToDevice({ deviceId: savedId, name: savedName || 'BMS' });
+            return;
+          } catch (e) {
+            console.warn('Direct connect to saved device failed, scan needed:', e);
+            throw new Error('RESCAN_NEEDED');
+          }
+        } else {
+          throw new Error('RESCAN_NEEDED');
+        }
+      }
+
+      // 2. Fallback Web Bluetooth
+      return this._connectWebBluetooth(scanAll);
+    }
+
     async _connectWebBluetooth(scanAll) {
-      const options = scanAll
-        ? { acceptAllDevices: true, optionalServices: [SERVICE_UUID] }
-        : { filters: [{ namePrefix: 'sepeda' }], optionalServices: [SERVICE_UUID] };
+      const options = {
+        acceptAllDevices: true,
+        optionalServices: [SERVICE_UUID, SERVICE_UUID_128],
+      };
 
       const device = await navigator.bluetooth.requestDevice(options);
       this.device = device;
       this.isCap = false;
+      if (device.name) {
+        localStorage.setItem('volt_bms_device_name', device.name);
+      }
       device.addEventListener('gattserverdisconnected', () => this._onDisconnected());
       await this._open();
     }
