@@ -7,7 +7,7 @@
   const fmt = (v, d) => (isFinite(v) ? Number(v).toFixed(d == null ? 1 : d) : '--');
 
   const MAX_KMH = 90;
-  const SPEED_MULT = 1.4;   // penggali tampilan speedometer (perkalian), 0 tetap 0
+  const SPEED_MULT = 1.3;   // penggali tampilan speedometer (perkalian), 0 tetap 0
   const GAUGE_LEN = 414.69;
   const SOC_LEN = 157.08; // semicircle path length (r=50)
   const SPEED_STOP = 1.0;   // m/s (~3.6 km/h) — below this the bike counts as stopped
@@ -195,7 +195,7 @@
       zoomControl: false,
       attributionControl: false,
       preferCanvas: true,
-    }).setView([-6.2088, 106.8456], 17);
+    }).setView([-6.2088, 106.8456], 19);
 
     const cfg = mapConfig();
     const isLight = state.theme === 'light';
@@ -205,7 +205,8 @@
     state.tileLayer = L.tileLayer(initialTileUrl, {
       attribution: cfg.tileAttribution || '&copy; OpenStreetMap &copy; CARTO',
       subdomains: 'abcd',
-      maxZoom: 18,
+      maxZoom: 20,
+      maxNativeZoom: 19,
       detectRetina: true,
     }).addTo(map);
 
@@ -266,7 +267,7 @@
     }
 
     if (state.follow) {
-      const targetZoom = Math.max(state.map.getZoom(), 17);
+      const targetZoom = Math.max(state.map.getZoom(), 19);
       state.map.setView(ll, targetZoom, { animate: true, duration: 0.4 });
     }
   }
@@ -411,15 +412,25 @@
       tag.textContent = mode === 'telemetry' ? t('noMap') : t('withMap');
       tag.classList.toggle('active', mode === 'telemetry');
     }
+    const dotMap = $('#pageDotMap');
+    const dotTel = $('#pageDotTel');
+    if (dotMap) {
+      dotMap.classList.toggle('active', mode !== 'telemetry');
+      dotMap.setAttribute('aria-selected', mode !== 'telemetry');
+    }
+    if (dotTel) {
+      dotTel.classList.toggle('active', mode === 'telemetry');
+      dotTel.setAttribute('aria-selected', mode === 'telemetry');
+    }
     if (mode === 'map' && state.map) {
-      setTimeout(() => { try { state.map.invalidateSize(); } catch (e) {} }, 80);
+      setTimeout(() => { try { state.map.invalidateSize(); } catch (e) {} }, 120);
     }
   }
 
   function toggleLayoutMode() {
     const next = state.layoutMode === 'telemetry' ? 'map' : 'telemetry';
     setLayoutMode(next);
-    toast(next === 'telemetry' ? t('toastTelemetryMode') : t('toastMapMode'));
+    toast(next === 'telemetry' ? (t('toastTelemetryMode') || 'Mode Telemetri') : (t('toastMapMode') || 'Mode Peta'));
   }
 
   /* ---------------- GPS ---------------- */
@@ -1652,6 +1663,132 @@
       deferredPrompt = null;
       $('#installBtn').hidden = true;
     });
+
+    initSwipeNavigation();
+  }
+
+  /* ---------------- swipe navigation (page 1: map, page 2: telemetry) ---------------- */
+  function initSwipeNavigation() {
+    const dash = document.querySelector('.dash');
+    if (!dash) return;
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    let isTracking = false;
+
+    // Use capture phase on .dash to reliably register swipe gestures across the cockpit
+    dash.addEventListener('touchstart', (e) => {
+      const panel = $('#settingsPanel');
+      if (panel && panel.classList.contains('cp-open')) return;
+      if (state.currentView !== 'ride') return;
+
+      // Ignore interactive buttons, inputs, close buttons, and alert banner
+      if (e.target.closest('button, input, select, textarea, .cp-row, .ha-close, #haCloseBtn, #hudAlertBanner, .d-time, .d-right-info')) {
+        return;
+      }
+
+      if (e.touches && e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now();
+        isTracking = true;
+      }
+    }, { capture: true, passive: true });
+
+    dash.addEventListener('touchend', (e) => {
+      if (!isTracking) return;
+      isTracking = false;
+
+      if (!e.changedTouches || !e.changedTouches.length) return;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const deltaX = endX - touchStartX;
+      const deltaY = endY - touchStartY;
+      const deltaTime = Date.now() - touchStartTime;
+
+      // Check for horizontal swipe gesture (horizontal delta must exceed 1.2x vertical delta)
+      if (Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+        const minDistance = deltaTime < 400 ? 35 : 55;
+        if (Math.abs(deltaX) >= minDistance) {
+          if (deltaX < 0) {
+            // Swiped LEFT -> Slide to Telemetry mode (Page 2)
+            if (state.layoutMode !== 'telemetry') {
+              setLayoutMode('telemetry');
+              try { if (navigator.vibrate) navigator.vibrate(20); } catch (_) {}
+              toast(t('toastTelemetryMode') || 'Mode Telemetri');
+            }
+          } else {
+            // Swiped RIGHT -> Slide to Map mode (Page 1)
+            if (state.layoutMode === 'telemetry') {
+              setLayoutMode('map');
+              try { if (navigator.vibrate) navigator.vibrate(20); } catch (_) {}
+              toast(t('toastMapMode') || 'Mode Peta');
+            }
+          }
+        }
+      }
+    }, { capture: true, passive: true });
+
+    // Desktop mouse drag support
+    let mouseStartX = 0;
+    let mouseStartY = 0;
+    let mouseStartTime = 0;
+    let isMouseDown = false;
+
+    dash.addEventListener('mousedown', (e) => {
+      const panel = $('#settingsPanel');
+      if (panel && panel.classList.contains('cp-open')) return;
+      if (state.currentView !== 'ride') return;
+      if (e.target.closest('button, input, select, textarea, .cp-row, .ha-close, #haCloseBtn, #hudAlertBanner, .d-time, .d-right-info, .leaflet-interactive')) {
+        return;
+      }
+      mouseStartX = e.clientX;
+      mouseStartY = e.clientY;
+      mouseStartTime = Date.now();
+      isMouseDown = true;
+    }, { capture: true });
+
+    window.addEventListener('mouseup', (e) => {
+      if (!isMouseDown) return;
+      isMouseDown = false;
+      const deltaX = e.clientX - mouseStartX;
+      const deltaY = e.clientY - mouseStartY;
+      const deltaTime = Date.now() - mouseStartTime;
+
+      if (Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+        const minDistance = deltaTime < 400 ? 35 : 55;
+        if (Math.abs(deltaX) >= minDistance) {
+          if (deltaX < 0) {
+            if (state.layoutMode !== 'telemetry') {
+              setLayoutMode('telemetry');
+              toast(t('toastTelemetryMode') || 'Mode Telemetri');
+            }
+          } else {
+            if (state.layoutMode === 'telemetry') {
+              setLayoutMode('map');
+              toast(t('toastMapMode') || 'Mode Peta');
+            }
+          }
+        }
+      }
+    });
+
+    // Page indicator dots click / tap
+    const dotMap = $('#pageDotMap');
+    const dotTel = $('#pageDotTel');
+    if (dotMap) {
+      dotMap.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setLayoutMode('map');
+      });
+    }
+    if (dotTel) {
+      dotTel.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setLayoutMode('telemetry');
+      });
+    }
   }
 
   /* ---------------- demo mode (?demo=1 or toggled via menu) ---------------- */

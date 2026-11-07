@@ -52,9 +52,6 @@
     <!-- ================= RIDE ================= -->
     <section id="rideView" class="view active">
       <div class="dash">
-        <div id="map" class="bgmap"></div>
-        <div class="dash-shade"></div>
-
         <!-- HUD Alert Notification Banner -->
         <div id="hudAlertBanner" class="hud-alert-banner" role="alert" hidden>
           <span class="ha-dot" id="haDot"></span>
@@ -67,7 +64,14 @@
           </button>
         </div>
 
-        <div class="dash-grid">
+        <!-- ================= SWIPEABLE DASHBOARD PAGES ================= -->
+        <div class="dash-pages" id="dashPages">
+          <!-- HALAMAN 1: MAP INTERFACE -->
+          <div class="dash-page page-map" id="pageMap">
+            <div id="map" class="bgmap"></div>
+            <div class="dash-shade"></div>
+
+            <div class="dash-grid">
           <!-- KIRI: voltase + status -->
           <div class="d-left">
             <span class="d-label" data-i18n="batteryVoltage">BATTERY VOLTAGE</span>
@@ -107,8 +111,9 @@
           </div>
         </div>
 
-        <!-- ================= TELEMETRY COCKPIT (NO MAP) ================= -->
-        <div class="telemetry-cockpit">
+        <!-- HALAMAN 2: TELEMETRY COCKPIT (NO MAP) -->
+        <div class="dash-page page-telemetry" id="pageTelemetry">
+          <div class="telemetry-cockpit">
           <!-- KIRI: Electrical & Power Flow -->
           <div class="tc-col tc-left">
             <div class="tc-card">
@@ -214,9 +219,16 @@
           </div>
         </div>
 
-        <!-- strip bawah: waktu | odo | soc/range/suhu -->
+        <!-- strip bawah: waktu | page dots | soc/range/suhu -->
         <div class="dash-bottom">
           <div class="d-time"><b id="clock2">--:--</b><span id="tripTime">00:00 min</span></div>
+
+          <!-- Page Indicator Dots (Swipe / Tap) -->
+          <div class="dash-page-dots" id="dashPageDots" role="tablist" aria-label="Dashboard Pages">
+            <span class="page-dot active" id="pageDotMap" role="tab" title="Map Interface" aria-selected="true"></span>
+            <span class="page-dot" id="pageDotTel" role="tab" title="Telemetry Interface" aria-selected="false"></span>
+          </div>
+
           <div class="d-right-info">
             <b id="hudSoc">--%</b>
             <span class="batt"><i id="battFill"></i></span>
