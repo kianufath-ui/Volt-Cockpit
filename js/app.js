@@ -201,15 +201,26 @@
     const cfg = mapConfig();
     const isLight = state.theme === 'light';
     const initialTileUrl = isLight
-      ? (cfg.tileUrlLight || 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_53nv_1_36016476114a28756464cdd2')
-      : (cfg.tileUrlDark || cfg.tileUrl || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_53nv_1_36016476114a28756464cdd2');
+      ? (cfg.tileUrlLight || 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png?key=cb1_53nv_1_36016476114a28756464cdd2')
+      : (cfg.tileUrlDark || cfg.tileUrl || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png?key=cb1_53nv_1_36016476114a28756464cdd2');
     state.tileLayer = L.tileLayer(initialTileUrl, {
       attribution: cfg.tileAttribution || '&copy; OpenStreetMap &copy; CARTO',
       subdomains: 'abcd',
       maxZoom: 20,
       maxNativeZoom: 18,
-      detectRetina: true,
+      detectRetina: false,
     }).addTo(map);
+
+    // Error fallback: jika tile Carto gagal (misal koneksi atau rate limit), otomatis fallback ke OSM
+    state.tileLayer.on('tileerror', (e) => {
+      if (e.tile && e.coords) {
+        const osmZ = Math.min(e.coords.z, 19);
+        const osmUrl = `https://tile.openstreetmap.org/${osmZ}/${e.coords.x}/${e.coords.y}.png`;
+        if (e.tile.src !== osmUrl) {
+          e.tile.src = osmUrl;
+        }
+      }
+    });
 
     state.map = map;
     state.trail = L.polyline([], {
@@ -229,7 +240,10 @@
     state.marker = L.marker([-6.2088, 106.8456], { icon, zIndexOffset: 1000 }).addTo(map);
     state.marker.setOpacity(0);
 
-    setTimeout(() => { try { map.invalidateSize(); } catch (e) {} }, 120);
+    // Staggered size invalidation untuk memastikan layout WebView Android stabil
+    [100, 300, 600, 1200].forEach((delay) => {
+      setTimeout(() => { try { map.invalidateSize(); } catch (e) {} }, delay);
+    });
   }
 
   function updateMap(lat, lon, heading, moving, accuracy) {
@@ -388,8 +402,8 @@
     const cfg = mapConfig();
     if (state.tileLayer) {
       const url = theme === 'light'
-        ? (cfg.tileUrlLight || 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_53nv_1_36016476114a28756464cdd2')
-        : (cfg.tileUrlDark || cfg.tileUrl || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_53nv_1_36016476114a28756464cdd2');
+        ? (cfg.tileUrlLight || 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png?key=cb1_53nv_1_36016476114a28756464cdd2')
+        : (cfg.tileUrlDark || cfg.tileUrl || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png?key=cb1_53nv_1_36016476114a28756464cdd2');
       state.tileLayer.setUrl(url);
     }
   }
@@ -1908,6 +1922,7 @@
       boot.classList.add('boot-done');
       setTimeout(() => {
         boot.classList.add('boot-hidden');
+        if (state.map) try { state.map.invalidateSize(); } catch (_) {}
       }, 500);
     }
 
