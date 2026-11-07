@@ -226,7 +226,7 @@
       // Scanning cerdas via requestLEScan (tanpa modal popup putih yang menghalangi)
       this.onStatus('connecting', 'Scanning bluetooth...');
 
-      targetDev = await new Promise((resolve) => {
+      targetDev = await new Promise(async (resolve) => {
         let timer = null;
         let scanSub = null;
         const foundList = [];
@@ -239,38 +239,40 @@
           } catch (_) {}
         };
 
-        Ble.addListener('onScanResult', async (res) => {
-          if (!res || !res.device || !res.device.deviceId) return;
-          const devId = res.device.deviceId;
-          const devName = (res.device.name || res.localName || '').trim();
-          const devLower = devName.toLowerCase();
+        try {
+          scanSub = await Ble.addListener('onScanResult', async (res) => {
+            if (!res || !res.device || !res.device.deviceId) return;
+            const devId = res.device.deviceId;
+            const devName = (res.device.name || res.localName || '').trim();
+            const devLower = devName.toLowerCase();
 
-          if (!foundList.some(d => d.deviceId === devId)) {
-            foundList.push({ deviceId: devId, name: devName || devId });
-          }
+            if (!foundList.some(d => d.deviceId === devId)) {
+              foundList.push({ deviceId: devId, name: devName || devId });
+            }
 
-          // Pencocokan otomatis (case-insensitive)
-          const isMatch = !scanAll && (
-            (savedId && devId === savedId) ||
-            devLower.includes('sepeda') ||
-            devLower.includes('cangki') ||
-            devLower.includes('jk') ||
-            devLower.includes('bms')
-          );
+            // Pencocokan otomatis (case-insensitive)
+            const isMatch = !scanAll && (
+              (savedId && devId === savedId) ||
+              devLower.includes('sepeda') ||
+              devLower.includes('cangki') ||
+              devLower.includes('jk') ||
+              devLower.includes('bms')
+            );
 
-          if (isMatch) {
-            await cleanup();
-            resolve({ deviceId: devId, name: devName || 'sepeda cangki' });
-          }
-        }).then(sub => {
-          scanSub = sub;
+            if (isMatch) {
+              await cleanup();
+              resolve({ deviceId: devId, name: devName || 'sepeda cangki' });
+            }
+          });
+
           // Mulai scan tanpa filter agar semua paket BLE masuk
-          return Ble.requestLEScan({});
-        }).catch(err => {
+          await Ble.requestLEScan({});
+        } catch (err) {
           console.warn('requestLEScan fallback:', err);
-          cleanup();
+          await cleanup();
           resolve(null);
-        });
+          return;
+        }
 
         // Batas waktu scan background 5 detik
         timer = setTimeout(async () => {
