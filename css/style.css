@@ -2616,26 +2616,25 @@ main { position: relative; flex: 1; min-height: 0; }
 .cp-btn-back {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 3px 6px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #8fa3b3;
-  font: inherit;
-  font-size: 10px;
-  font-weight: 600;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
   cursor: pointer;
-  transition: all 0.12s;
+  transition: all 0.15s;
 }
 
 .cp-btn-back:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.14);
   color: #fff;
 }
 
 .cp-btn-back:active {
-  transform: scale(0.96);
+  transform: scale(0.92);
 }
 
 /* Settings Row with Input Controls */
