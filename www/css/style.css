@@ -2656,8 +2656,8 @@ main { position: relative; flex: 1; min-height: 0; }
   padding: 0 4px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #38f2a0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f8fafc;
   font-family: inherit;
   font-size: 11px;
   font-weight: 600;
@@ -2668,8 +2668,8 @@ main { position: relative; flex: 1; min-height: 0; }
 }
 
 .cp-num-inp:focus {
-  border-color: #38f2a0;
-  background: rgba(56, 242, 160, 0.06);
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.10);
 }
 
 /* Remove up/down spinners on number input */
@@ -2719,14 +2719,14 @@ main { position: relative; flex: 1; min-height: 0; }
 }
 
 .cp-toggle-chk:checked {
-  background: rgba(56, 242, 160, 0.22);
-  border-color: #38f2a0;
+  background: #475569;
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .cp-toggle-chk:checked::before {
   transform: translateX(12px);
-  background: #38f2a0;
-  box-shadow: 0 0 5px rgba(56, 242, 160, 0.6);
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
 .cp-disabled {
@@ -2891,12 +2891,12 @@ main { position: relative; flex: 1; min-height: 0; }
 
 [data-theme="light"] .cp-num-inp {
   background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.12);
-  color: #0284c7;
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #0f172a;
 }
 [data-theme="light"] .cp-num-inp:focus {
-  border-color: #0284c7;
-  background: rgba(2, 132, 199, 0.06);
+  border-color: #475569;
+  background: rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .cp-toggle-chk {
@@ -2907,8 +2907,8 @@ main { position: relative; flex: 1; min-height: 0; }
   background: #ffffff;
 }
 [data-theme="light"] .cp-toggle-chk:checked {
-  background: #0284c7;
-  border-color: #0284c7;
+  background: #475569;
+  border-color: #475569;
 }
 
 [data-theme="light"] .cp-pill {

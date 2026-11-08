@@ -475,7 +475,6 @@
   function toggleLayoutMode() {
     const next = state.layoutMode === 'telemetry' ? 'map' : 'telemetry';
     setLayoutMode(next);
-    toast(next === 'telemetry' ? (t('toastTelemetryMode') || 'Mode Telemetri') : (t('toastMapMode') || 'Mode Peta'));
   }
 
   /* ---------------- GPS ---------------- */
@@ -1785,14 +1784,12 @@
             if (state.layoutMode !== 'telemetry') {
               setLayoutMode('telemetry');
               try { if (navigator.vibrate) navigator.vibrate(20); } catch (_) {}
-              toast(t('toastTelemetryMode') || 'Mode Telemetri');
             }
           } else {
             // Swiped RIGHT -> Slide to Map mode (Page 1)
             if (state.layoutMode === 'telemetry') {
               setLayoutMode('map');
               try { if (navigator.vibrate) navigator.vibrate(20); } catch (_) {}
-              toast(t('toastMapMode') || 'Mode Peta');
             }
           }
         }
@@ -1832,12 +1829,10 @@
           if (deltaX < 0) {
             if (state.layoutMode !== 'telemetry') {
               setLayoutMode('telemetry');
-              toast(t('toastTelemetryMode') || 'Mode Telemetri');
             }
           } else {
             if (state.layoutMode === 'telemetry') {
               setLayoutMode('map');
-              toast(t('toastMapMode') || 'Mode Peta');
             }
           }
         }
