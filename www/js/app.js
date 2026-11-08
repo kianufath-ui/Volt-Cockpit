@@ -7,10 +7,10 @@
   const fmt = (v, d) => (isFinite(v) ? Number(v).toFixed(d == null ? 1 : d) : '--');
 
   const MAX_KMH = 90;
-  const SPEED_MULT = 1.3;   // penggali tampilan speedometer (perkalian), 0 tetap 0
+  const SPEED_MULT = 1.2;   // penggali tampilan speedometer: 1.2
   const GAUGE_LEN = 414.69;
   const SOC_LEN = 157.08; // semicircle path length (r=50)
-  const SPEED_STOP = 1.0;   // m/s (~3.6 km/h) — below this the bike counts as stopped
+  const SPEED_STOP = 0.35;  // m/s (~1.26 km/h) — responsif saat mulai maju, stabil saat berhenti
   const ACCURACY_MAX = 60;  // m — fixes worse than this are not trusted for speed/trip
 
   const state = {
@@ -198,6 +198,12 @@
       zoomControl: false,
       attributionControl: false,
       preferCanvas: true,
+      dragging: false,
+      touchZoom: false,
+      doubleClickZoom: false,
+      scrollWheelZoom: false,
+      boxZoom: false,
+      keyboard: false,
     }).setView([-6.2088, 106.8456], 19);
 
     const cfg = mapConfig();
@@ -263,7 +269,7 @@
       state.lastHeading = heading;
     }
 
-    // Google Maps Heading-Up: arrow kendaraan lurus ke atas (0 deg),
+    // Apple Maps Heading-Up: arrow kendaraan lurus ke atas (0 deg),
     // map diputar berlawanan arah (-mapRotation) sehingga jalan selalu lurus ke depan
     mapEl.style.transform = `translate(-50%, -50%) rotate(${-state.mapRotation}deg)`;
   }
@@ -272,42 +278,27 @@
     if (!state.map) return;
     if (!state.gps.last) {
       // GPS pertama masuk: paksa Leaflet hitung ulang ukuran container
-      // (bug Safari: tile hilang setelah setView kalau size belum update).
       requestAnimationFrame(() => {
         try { state.map.invalidateSize({ pan: false }); } catch (e) { /* abaikan */ }
       });
     }
     const ll = [lat, lon];
     state.marker.setLatLng(ll);
+    state.marker.setOpacity(0); // Selalu sembunyikan marker Leaflet karena HUD chevron putih yang aktif
 
-    if (state.follow) {
-      // Sembunyikan marker default Leaflet agar hanya chevron 3D HUD besar di tengah jalan yang tampil
-      state.marker.setOpacity(0);
-      const navHud = $('#navArrowHud');
-      if (navHud) navHud.style.opacity = '1';
+    const navHud = $('#navArrowHud');
+    if (navHud) navHud.style.opacity = '1';
 
-      // Heading-up rotation: update saat bergerak (speed >= 1.0 m/s) atau saat fix pertama didapat
-      // Mencegah rotasi map goyang/jitter saat berhenti di lampu merah
-      if (typeof heading === 'number' && isFinite(heading)) {
-        if (moving || state.lastHeading === null) {
-          rotateMapToHeading(heading);
-        }
-      }
-
-      const targetZoom = Math.max(state.map.getZoom(), 19);
-      state.map.setView(ll, targetZoom, { animate: true, duration: 0.45 });
-    } else {
-      // Mode pan bebas (follow dimatikan): tampilkan marker leaflet dan biarkan map North-up
-      state.marker.setOpacity(1);
-      const navHud = $('#navArrowHud');
-      if (navHud) navHud.style.opacity = '0';
-
-      const el = state.marker.getElement();
-      if (el) {
-        const arrow = el.querySelector('.arrow');
-        if (arrow) arrow.style.transform = 'rotate(' + (heading || 0) + 'deg)';
+    // Heading-up rotation: update saat bergerak (speed >= 0.45 m/s) atau saat fix pertama didapat
+    // Peta selalu terkunci ke arrow kendaraan (permanent auto-center)
+    if (typeof heading === 'number' && isFinite(heading)) {
+      if (moving || state.lastHeading === null) {
+        rotateMapToHeading(heading);
       }
     }
+
+    const targetZoom = Math.max(state.map.getZoom(), 19);
+    state.map.setView(ll, targetZoom, { animate: true, duration: 0.45 });
 
     // Trail (garis cyan) sementara: dinonaktifkan — request user "dihapus".
     if (moving && state.trailEnabled) {
@@ -578,47 +569,73 @@
     let best = Infinity;
     for (let i = 0; i < hist.length; i++) {
       const age = t - hist[i].t;
-      if (age < 2500 || age > 8000) continue;
-      const score = Math.abs(age - 5000);
+      if (age < 2000 || age > 7000) continue;
+      const score = Math.abs(age - 4000);
       if (score < best) { best = score; ref = hist[i]; }
     }
     const windowDt = ref ? (t - ref.t) / 1000 : 0;
     const windowD = ref ? haversine(ref.lat, ref.lon, lat, lon) : 0;
-    const stillRadius = Math.max(5, (accuracy || 0) * 0.8);
-    const windowStill = ref != null && windowDt >= 2.5 && windowD < stillRadius;
+    const stillRadius = Math.max(3.5, (accuracy || 0) * 0.5);
+    const windowStill = ref != null && windowDt >= 2.0 && windowD < stillRadius;
 
-    if (raw == null && ref && windowDt >= 2.5 && goodFix) {
+    // Fallback hitung kecepatan dari perpindahan posisi HANYA jika perangkat tidak mengirimkan c.speed
+    if (raw == null && ref && windowDt >= 2.0 && goodFix) {
       raw = windowD > stillRadius ? windowD / windowDt : 0;
     }
     if (raw == null) raw = 0;
-    if (raw > 60) raw = 0; // spike filter (216+ km/h is not a bike)
-    if (!goodFix) raw = state.gps.speed; // don't trust speed on a bad fix
-    if (windowStill) raw = 0; // standing still: ignore speed-field noise too
+    if (raw > 60) raw = 0; // spike filter (>216 km/h)
+    if (!goodFix) raw = state.gps.speed; // jangan percaya spike saat sinyal buruk
 
-    // Stationary deadband: standing still, GPS noise is usually 0.3–1.5 m/s.
+    // Jika perangkat tidak ada hardware speed dan jendela posisi menunjukkan diam, nol-kan
+    if (c.speed == null && windowStill) raw = 0;
+
+    // Stationary deadband: saat berhenti, noise GPS biasanya 0.05–0.25 m/s. Di bawah 0.35 m/s dianggap 0
     if (raw < SPEED_STOP) raw = 0;
 
+    // Filter asimetris:
+    // Saat akselerasi (raw > speed saat ini), respon instan (bobot 0.75 raw baru)
+    // Saat berhenti (raw === 0), drop cepat ke 0 tanpa delay
     if (raw === 0) {
-      // Decay fast so the gauge drops to 0 within ~2 fixes.
-      state.gps.speed *= 0.45;
-      if (state.gps.speed < 0.25) state.gps.speed = 0;
+      state.gps.speed *= 0.35;
+      if (state.gps.speed < 0.15) state.gps.speed = 0;
+    } else if (raw > state.gps.speed) {
+      state.gps.speed = state.gps.speed * 0.25 + raw * 0.75;
     } else {
       state.gps.speed = state.gps.speed * 0.5 + raw * 0.5;
     }
 
     let kmh = state.gps.speed * 3.6;
-    if (kmh < 1.5) kmh = 0;
+    if (kmh < 0.6) kmh = 0;
     if (window.AlertEngine) {
       window.AlertEngine.onGpsFix(pos.timestamp || Date.now());
       window.AlertEngine.checkSpeed(kmh);
     }
-    const moving = state.gps.speed >= SPEED_STOP * 0.7;
+    const moving = state.gps.speed >= 0.45; // ~1.6 km/h: ambang pergerakan kendaraan
 
-    // Only update the compass while moving; otherwise the arrow spins from noise.
+    // Apple Maps heading smoothing:
+    // Hanya perbarui heading saat bergerak agar arrow tidak berputar liar saat diam di lampu merah.
+    // Menghaluskan transisi lekukan jalan dengan peredam sudut (angular blending).
     let heading = state.gps.heading;
     if (moving) {
-      if (typeof c.heading === 'number' && isFinite(c.heading)) heading = c.heading;
-      else if (last) heading = bearing(last.lat, last.lon, lat, lon);
+      let targetHeading = null;
+      if (typeof c.heading === 'number' && isFinite(c.heading) && c.heading >= 0) {
+        targetHeading = c.heading;
+      } else if (last) {
+        const dFromLast = haversine(last.lat, last.lon, lat, lon);
+        if (dFromLast > 1.0) {
+          targetHeading = bearing(last.lat, last.lon, lat, lon);
+        }
+      }
+
+      if (targetHeading !== null) {
+        if (state.gps.heading == null) {
+          heading = targetHeading;
+        } else {
+          // Angular smoothing: blend heading perlahan mengikuti geometri jalan
+          const diff = ((targetHeading - state.gps.heading + 540) % 360) - 180;
+          heading = (state.gps.heading + diff * 0.45 + 360) % 360;
+        }
+      }
     }
 
     state.gps.heading = heading;
@@ -1579,26 +1596,6 @@
       if (state.gps.active) stopGps();
       else startGps();
       syncGpsButton();
-    });
-
-    on('#followBtn', 'click', () => {
-      state.follow = !state.follow;
-      syncGpsButton();
-      toast(state.follow ? t('toastFollowOn') : t('toastFollowOff'));
-      const navHud = $('#navArrowHud');
-      if (state.follow) {
-        if (navHud) navHud.style.opacity = '1';
-        if (state.marker) state.marker.setOpacity(0);
-        if (state.gps.pos && state.map) {
-          state.map.setView([state.gps.pos.lat, state.gps.pos.lon], 19, { animate: true, duration: 0.45 });
-          if (typeof state.gps.heading === 'number') rotateMapToHeading(state.gps.heading);
-        }
-      } else {
-        if (navHud) navHud.style.opacity = '0';
-        if (state.marker) state.marker.setOpacity(1);
-        const mapEl = $('#map');
-        if (mapEl) mapEl.style.transform = 'translate(-50%, -50%) rotate(0deg)';
-      }
     });
 
     on('#settingsBtn', 'click', (e) => {

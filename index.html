@@ -71,36 +71,14 @@
             <div id="map" class="bgmap"></div>
             <div class="dash-shade"></div>
 
-            <!-- Google Maps Style 3D Navigation Arrow HUD (Centered on road) -->
+            <!-- Apple Maps Style Pure White Navigation Chevron HUD -->
             <div id="navArrowHud" class="nav-arrow-hud" aria-hidden="true">
-              <div class="nav-pulse-ring"></div>
               <div class="nav-arrow-body">
-                <svg class="nav-chevron-svg" viewBox="0 0 46 52" width="46" height="52" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <defs>
-                    <linearGradient id="navWingLeft" x1="3" y1="44" x2="23" y2="2" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stop-color="#00D2FF"/>
-                      <stop offset="100%" stop-color="#38F2A0"/>
-                    </linearGradient>
-                    <linearGradient id="navWingRight" x1="23" y1="2" x2="43" y2="44" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stop-color="#0096C7"/>
-                      <stop offset="100%" stop-color="#0077B6"/>
-                    </linearGradient>
-                    <filter id="navGlow" x="-30%" y="-30%" width="160%" height="160%">
-                      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="rgba(0,0,0,0.65)"/>
-                      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="rgba(0,229,255,0.45)"/>
-                    </filter>
-                  </defs>
-                  <g filter="url(#navGlow)">
-                    <!-- Left wing (light reflection) -->
-                    <path d="M 23 3 L 3 44 L 23 35 Z" fill="url(#navWingLeft)"/>
-                    <!-- Right wing (shaded facet) -->
-                    <path d="M 23 3 L 23 35 L 43 44 Z" fill="url(#navWingRight)"/>
-                    <!-- White outer stroke and center spine -->
-                    <path d="M 23 3 L 3 44 L 23 35 L 43 44 Z" stroke="#FFFFFF" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
-                    <line x1="23" y1="3" x2="23" y2="35" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" opacity="0.95"/>
-                    <!-- Center vehicle dot -->
-                    <circle cx="23" cy="27" r="3" fill="#FFFFFF"/>
-                  </g>
+                <svg class="apple-nav-chevron" viewBox="0 0 38 44" width="38" height="44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <!-- Solid crisp pure white chevron body -->
+                  <path d="M19 3 L4 39 L19 31 L34 39 Z" fill="#FFFFFF"/>
+                  <!-- Subtle precision hairline center crease -->
+                  <line x1="19" y1="4" x2="19" y2="30.5" stroke="#000000" stroke-width="0.8" stroke-opacity="0.2"/>
                 </svg>
               </div>
             </div>
@@ -256,15 +234,9 @@
       </div>
     </div>
 
-        <!-- strip bawah: waktu | page dots | soc/range/suhu -->
+        <!-- strip bawah: waktu | soc/range/suhu -->
         <div class="dash-bottom">
           <div class="d-time"><b id="clock2">--:--</b><span id="tripTime">00:00 min</span></div>
-
-          <!-- Page Indicator Dots (Swipe / Tap) -->
-          <div class="dash-page-dots" id="dashPageDots" role="tablist" aria-label="Dashboard Pages">
-            <span class="page-dot active" id="pageDotMap" role="tab" title="Map Interface" aria-selected="true"></span>
-            <span class="page-dot" id="pageDotTel" role="tab" title="Telemetry Interface" aria-selected="false"></span>
-          </div>
 
           <div class="d-right-info">
             <b id="hudSoc">--%</b>
@@ -353,11 +325,6 @@
                 <svg class="cp-ic" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
                 <span class="cp-rl" id="gpsLabel" data-i18n="startTracking">Start tracking</span>
                 <span id="gpsPill" class="cp-dot off"></span>
-              </button>
-              <button id="followBtn" class="cp-row cp-act">
-                <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-                <span class="cp-rl" data-i18n="followVehicle">Follow vehicle</span>
-                <span class="cp-tag" id="followTag">ON</span>
               </button>
             </div>
             <div class="cp-sect">
