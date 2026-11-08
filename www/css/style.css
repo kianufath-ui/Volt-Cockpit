@@ -642,16 +642,96 @@ main { position: relative; flex: 1; min-height: 0; }
 .dash { position: absolute; inset: 0; overflow: hidden; background: var(--navy); color: #f2f7fb; }
 
 .bgmap {
-  position: absolute; inset: 0;
+  position: absolute;
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: 175vmax;
+  height: 175vmax;
+  transform: translate(-50%, -50%) rotate(0deg);
+  transform-origin: 50% 50%;
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
   filter: brightness(0.85) saturate(0.95);
   z-index: 0;
 }
-#map.bgmap { position: absolute; inset: 0; }
+#map.bgmap {
+  position: absolute;
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: 175vmax;
+  height: 175vmax;
+  transform: translate(-50%, -50%) rotate(0deg);
+  transform-origin: 50% 50%;
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
 .dash-shade {
   position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background:
     linear-gradient(90deg, rgba(20, 31, 43, 0.78) 0%, rgba(20, 31, 43, 0.42) 14%, rgba(20, 31, 43, 0.12) 30%, rgba(20, 31, 43, 0) 46%, rgba(20, 31, 43, 0) 64%, rgba(20, 31, 43, 0.18) 82%, rgba(20, 31, 43, 0.75) 100%),
     linear-gradient(rgba(20, 31, 43, 0.08), rgba(20, 31, 43, 0.32));
+}
+
+/* ============================================================
+   GOOGLE MAPS STYLE HEADING-UP NAVIGATION ARROW & HUD
+   ============================================================ */
+.nav-arrow-hud {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 0.25s ease;
+}
+
+.nav-pulse-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 58px;
+  height: 58px;
+  margin-top: -29px;
+  margin-left: -29px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 229, 255, 0.25) 0%, rgba(0, 229, 255, 0.05) 60%, rgba(0, 229, 255, 0) 100%);
+  border: 1.5px solid rgba(0, 229, 255, 0.45);
+  animation: navPulseRing 2.4s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes navPulseRing {
+  0% {
+    transform: scale(0.65);
+    opacity: 0.95;
+  }
+  60% {
+    transform: scale(1.65);
+    opacity: 0.25;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.nav-arrow-body {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-chevron-svg {
+  display: block;
+  transform-origin: 23px 27px;
 }
 
 .dash-grid {
@@ -1020,6 +1100,15 @@ main { position: relative; flex: 1; min-height: 0; }
     linear-gradient(to bottom, rgba(235, 241, 246, 0.16) 0%, rgba(235, 241, 246, 0) 25%, rgba(235, 241, 246, 0) 75%, rgba(235, 241, 246, 0.3) 100%);
 }
 
+[data-theme="light"] .nav-pulse-ring {
+  background: radial-gradient(circle, rgba(0, 160, 220, 0.25) 0%, rgba(0, 160, 220, 0.05) 60%, transparent 100%);
+  border-color: rgba(0, 140, 200, 0.55);
+}
+
+[data-theme="light"] .nav-arrow-body {
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 12px rgba(0, 160, 220, 0.5));
+}
+
 [data-theme="light"] .d-speed b {
   color: #090d16;
   text-shadow: none !important;
@@ -1240,6 +1329,7 @@ main { position: relative; flex: 1; min-height: 0; }
   transform: translateX(0);
   opacity: 1;
   pointer-events: auto;
+  overflow: hidden;
 }
 
 /* Page 2: Telemetry Cockpit (No Map) */

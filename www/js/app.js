@@ -23,6 +23,8 @@
     follow: true,
     wakeLock: null,
     map: null,
+    mapRotation: 0,
+    lastHeading: null,
     marker: null,
     trail: null,
     trailEnabled: false, // trail (garis cyan) sementara dimatikan — request user
@@ -246,6 +248,26 @@
     });
   }
 
+  function rotateMapToHeading(heading) {
+    if (typeof heading !== 'number' || !isFinite(heading)) return;
+    const mapEl = $('#map');
+    if (!mapEl) return;
+
+    if (state.lastHeading === null) {
+      state.lastHeading = heading;
+      state.mapRotation = heading;
+    } else {
+      // Shortest angular difference unwrapping untuk mencegah putaran terbalik 360 derajat
+      const diff = ((heading - state.lastHeading + 540) % 360) - 180;
+      state.mapRotation += diff;
+      state.lastHeading = heading;
+    }
+
+    // Google Maps Heading-Up: arrow kendaraan lurus ke atas (0 deg),
+    // map diputar berlawanan arah (-mapRotation) sehingga jalan selalu lurus ke depan
+    mapEl.style.transform = `translate(-50%, -50%) rotate(${-state.mapRotation}deg)`;
+  }
+
   function updateMap(lat, lon, heading, moving, accuracy) {
     if (!state.map) return;
     if (!state.gps.last) {
@@ -257,12 +279,34 @@
     }
     const ll = [lat, lon];
     state.marker.setLatLng(ll);
-    state.marker.setOpacity(1);
 
-    const el = state.marker.getElement();
-    if (el) {
-      const arrow = el.querySelector('.arrow');
-      if (arrow) arrow.style.transform = 'rotate(' + heading + 'deg)';
+    if (state.follow) {
+      // Sembunyikan marker default Leaflet agar hanya chevron 3D HUD besar di tengah jalan yang tampil
+      state.marker.setOpacity(0);
+      const navHud = $('#navArrowHud');
+      if (navHud) navHud.style.opacity = '1';
+
+      // Heading-up rotation: update saat bergerak (speed >= 1.0 m/s) atau saat fix pertama didapat
+      // Mencegah rotasi map goyang/jitter saat berhenti di lampu merah
+      if (typeof heading === 'number' && isFinite(heading)) {
+        if (moving || state.lastHeading === null) {
+          rotateMapToHeading(heading);
+        }
+      }
+
+      const targetZoom = Math.max(state.map.getZoom(), 19);
+      state.map.setView(ll, targetZoom, { animate: true, duration: 0.45 });
+    } else {
+      // Mode pan bebas (follow dimatikan): tampilkan marker leaflet dan biarkan map North-up
+      state.marker.setOpacity(1);
+      const navHud = $('#navArrowHud');
+      if (navHud) navHud.style.opacity = '0';
+
+      const el = state.marker.getElement();
+      if (el) {
+        const arrow = el.querySelector('.arrow');
+        if (arrow) arrow.style.transform = 'rotate(' + (heading || 0) + 'deg)';
+      }
     }
 
     // Trail (garis cyan) sementara: dinonaktifkan — request user "dihapus".
@@ -279,11 +323,6 @@
           state.trailPts = trimmed.length;
         }
       }
-    }
-
-    if (state.follow) {
-      const targetZoom = Math.max(state.map.getZoom(), 19);
-      state.map.setView(ll, targetZoom, { animate: true, duration: 0.4 });
     }
   }
 
@@ -1546,6 +1585,20 @@
       state.follow = !state.follow;
       syncGpsButton();
       toast(state.follow ? t('toastFollowOn') : t('toastFollowOff'));
+      const navHud = $('#navArrowHud');
+      if (state.follow) {
+        if (navHud) navHud.style.opacity = '1';
+        if (state.marker) state.marker.setOpacity(0);
+        if (state.gps.pos && state.map) {
+          state.map.setView([state.gps.pos.lat, state.gps.pos.lon], 19, { animate: true, duration: 0.45 });
+          if (typeof state.gps.heading === 'number') rotateMapToHeading(state.gps.heading);
+        }
+      } else {
+        if (navHud) navHud.style.opacity = '0';
+        if (state.marker) state.marker.setOpacity(1);
+        const mapEl = $('#map');
+        if (mapEl) mapEl.style.transform = 'translate(-50%, -50%) rotate(0deg)';
+      }
     });
 
     on('#settingsBtn', 'click', (e) => {
