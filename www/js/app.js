@@ -46,6 +46,7 @@
     themeNightStart: localStorage.getItem('dashThemeNightStart') || '18:00',
     layoutMode: localStorage.getItem('dashLayout') || 'map',
     peakPower: 0,
+    peakCurrent: 0,
     tileLayer: null,
     odoKm: Number(localStorage.getItem('odoKm') || 0) || 0,
     whPerKm: Number(localStorage.getItem('whPerKm') || 35) || 35,
@@ -371,6 +372,10 @@
     if (avgWhEl) avgWhEl.textContent = String(Math.round(state.whPerKm));
     const tripWhPanel = $('#tripWhPanel');
     if (tripWhPanel) tripWhPanel.textContent = Math.round(state.whPerKm) + ' Wh/km';
+    const tripKm = (state.tripA && state.tripA.distance ? state.tripA.distance : state.trip.distance) / 1000;
+    const tripKwh = (tripKm * (state.whPerKm || 35)) / 1000;
+    const telTripEnergy = $('#telTripEnergy');
+    if (telTripEnergy) telTripEnergy.textContent = tripKwh.toFixed(2);
   }
 
   function addDistance(meters) {
@@ -396,6 +401,7 @@
   function resetTripA() {
     state.tripA.distance = 0;
     try { localStorage.setItem('tripAKm', '0'); } catch (e) {}
+    const telTripEnergy = $('#telTripEnergy'); if (telTripEnergy) telTripEnergy.textContent = '0.00';
     updateTrip();
     toast(t('toastTripAReset'));
   }
@@ -414,6 +420,11 @@
     state.trip.maxSpeed = 0;
     state.trip.movingMs = 0;
     state.trip.lastTs = null;
+    state.peakPower = 0;
+    state.peakCurrent = 0;
+    const telPeak = $('#telPeak'); if (telPeak) telPeak.textContent = 'PEAK 0 W';
+    const telPeakA = $('#telPeakA'); if (telPeakA) telPeakA.textContent = '0.0';
+    const telTripEnergy = $('#telTripEnergy'); if (telTripEnergy) telTripEnergy.textContent = '0.00';
     try {
       localStorage.setItem('tripAKm', '0');
       localStorage.setItem('tripBKm', '0');
@@ -1123,12 +1134,26 @@
 
       // Telemetry Cockpit (No Map) live updates
       const telV = $('#telV'); if (telV) telV.textContent = fmt(d.packV, 1);
+      const cellCount = d.cellCount || (d.cells && d.cells.length) || 20;
+      const avgCellV = d.packV && cellCount ? (d.packV / cellCount) : 0;
+      const telCellAvg = $('#telCellAvg');
+      if (telCellAvg) telCellAvg.textContent = avgCellV > 0 ? fmt(avgCellV, 2) : '--';
+
       const telA = $('#telA');
       if (telA) {
         if (d.current < -0.1) telA.textContent = fmt(d.current, 1);
         else if (d.current > 0.1) telA.textContent = '+' + fmt(d.current, 1);
         else telA.textContent = '0.0';
       }
+      const absCurrent = Math.abs(d.current || 0);
+      if (absCurrent > state.peakCurrent) state.peakCurrent = absCurrent;
+      const telPeakA = $('#telPeakA');
+      if (telPeakA) telPeakA.textContent = fmt(state.peakCurrent, 1);
+
+      const tripKm = (state.tripA && state.tripA.distance ? state.tripA.distance : state.trip.distance) / 1000;
+      const tripKwh = (tripKm * (state.whPerKm || 35)) / 1000;
+      const telTripEnergy = $('#telTripEnergy');
+      if (telTripEnergy) telTripEnergy.textContent = fmt(tripKwh, 2);
       const telW = $('#telW');
       if (telW) {
         if (d.power < -5) telW.textContent = fmt(d.power, 0);
@@ -1404,10 +1429,12 @@
     const setV = $('#cpAlertSettingsView');
     const histV = $('#cpAlertHistoryView');
     const appV = $('#cpAppearanceView');
+    const aboutV = $('#cpAboutView');
     if (mainV) mainV.hidden = (viewName !== 'main');
     if (setV) setV.hidden = (viewName !== 'settings');
     if (histV) histV.hidden = (viewName !== 'history');
     if (appV) appV.hidden = (viewName !== 'appearance');
+    if (aboutV) aboutV.hidden = (viewName !== 'about');
 
     if (viewName === 'settings') populateAlertSettings();
     if (viewName === 'history') renderAlertHistory(currentHistFilter);
@@ -1713,6 +1740,8 @@
 
     on('#layoutToggleBtn', 'click', toggleLayoutMode);
     on('#langToggleBtn', 'click', toggleLanguage);
+    on('#openAboutBtn', 'click', () => showCpView('about'));
+    on('#backFromAboutBtn', 'click', () => showCpView('main'));
 
     on('#gpsBtn', 'click', () => {
       if (state.gps.active) stopGps();

@@ -1437,6 +1437,68 @@ main { position: relative; flex: 1; min-height: 0; }
   gap: 6px;
 }
 
+/* Telemetry Card Main Row: Primary on Left, Secondary Smaller on Right */
+.tc-card-main-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.tc-primary-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.tc-side-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  flex-shrink: 0;
+  padding-bottom: 2px;
+}
+
+.tc-side-lbl {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.tc-side-val {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  margin-top: 1px;
+}
+
+.tc-side-val b {
+  font-size: 15px;
+  font-weight: 700;
+  color: #dbe4ed;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tc-side-val small {
+  font-size: 9px;
+  font-weight: 600;
+  color: #718292;
+}
+
+.tc-side-sub {
+  font-size: 7.5px;
+  font-weight: 600;
+  color: #556575;
+  letter-spacing: 0.04em;
+  margin-top: 1px;
+}
+
 .tc-lbl {
   font-size: 8.5px;
   font-weight: 700;
@@ -2727,6 +2789,100 @@ main { position: relative; flex: 1; min-height: 0; }
   cursor: pointer;
 }
 
+/* About Subview Styling */
+.about-hero-sect {
+  padding: 10px 8px 8px;
+}
+
+.about-hero-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.about-logo-pill {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(56, 242, 160, 0.12);
+  border: 1px solid rgba(56, 242, 160, 0.35);
+  color: var(--teal, #38f2a0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(56, 242, 160, 0.2);
+}
+
+.about-hero-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.about-hero-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.about-app-name {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+}
+
+.about-ver-tag {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #94a3b8;
+  letter-spacing: 0.04em;
+}
+
+.about-sub-title {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.about-highlight-val {
+  font-size: 11px;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: 0.02em;
+}
+
+.about-creator-box {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.about-creator-lbl {
+  font-size: 7.5px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.about-creator-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #f8fafc;
+  line-height: 1.2;
+}
+
 /* Settings Row with Input Controls */
 .cp-row-input {
   justify-content: space-between;
@@ -3017,6 +3173,47 @@ main { position: relative; flex: 1; min-height: 0; }
 
 [data-theme="light"] .cp-time-inp::-webkit-calendar-picker-indicator {
   filter: none;
+}
+
+[data-theme="light"] .tc-side-lbl {
+  color: #64748b;
+}
+
+[data-theme="light"] .tc-side-val b {
+  color: #0f172a;
+}
+
+[data-theme="light"] .tc-side-val small {
+  color: #475569;
+}
+
+[data-theme="light"] .tc-side-sub {
+  color: #64748b;
+}
+
+[data-theme="light"] .about-logo-pill {
+  background: rgba(2, 132, 199, 0.10);
+  border-color: rgba(2, 132, 199, 0.30);
+  color: #0284c7;
+  box-shadow: none;
+}
+
+[data-theme="light"] .about-app-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .about-ver-tag {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: #475569;
+}
+
+[data-theme="light"] .about-highlight-val {
+  color: #0f172a;
+}
+
+[data-theme="light"] .about-creator-name {
+  color: #0f172a;
 }
 
 [data-theme="light"] .cp-num-inp {
