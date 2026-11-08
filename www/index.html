@@ -13,6 +13,34 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
   <link rel="stylesheet" href="css/style.css" />
+  <script>
+    // Fail-safe error reporter & splash screen disabler
+    window.onerror = function(msg, url, line, col, error) {
+      console.error('[VOLT FATAL]', msg, url, line, col, error);
+      var b = document.getElementById('bootScreen');
+      if (b) { b.classList.add('boot-done'); b.classList.add('boot-hidden'); }
+      var d = document.createElement('div');
+      d.style = 'position:fixed;top:0;left:0;right:0;z-index:9999999;background:#b91c1c;color:#fff;padding:16px;font-family:monospace;font-size:12px;line-height:1.4;word-break:break-all;';
+      d.innerHTML = '<b>VOLT RUNTIME ERROR:</b> ' + msg + '<br><small>' + (url || '') + ':' + line + ':' + col + '</small>';
+      document.body ? document.body.appendChild(d) : document.documentElement.appendChild(d);
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      console.warn('[VOLT REJECTION]', e.reason);
+    });
+    // Safety: ensure bootScreen and native SplashScreen cannot hang indefinitely
+    setTimeout(function() {
+      var b = document.getElementById('bootScreen');
+      if (b && !b.classList.contains('boot-hidden')) {
+        b.classList.add('boot-done');
+        setTimeout(function() { b.classList.add('boot-hidden'); }, 300);
+      }
+      try {
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SplashScreen) {
+          window.Capacitor.Plugins.SplashScreen.hide();
+        }
+      } catch (_) {}
+    }, 1200);
+  </script>
 </head>
 <body>
 <div id="app">

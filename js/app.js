@@ -2334,17 +2334,21 @@
   }
 
   /* ---------------- boot ---------------- */
-  buildSpeedTicks();
-  setLanguage(state.lang, true);
-  applyResolvedTheme(true);
-  setLayoutMode(state.layoutMode);
-  initMap();
-  initBms();
-  bindUi();
-  setMode(state.rideMode);
-  tickClock();
-  setInterval(tickClock, 15000);
-  updateTrip();
+  try {
+    buildSpeedTicks();
+    setLanguage(state.lang, true);
+    applyResolvedTheme(true);
+    setLayoutMode(state.layoutMode);
+    initMap();
+    initBms();
+    bindUi();
+    setMode(state.rideMode);
+    tickClock();
+    setInterval(tickClock, 15000);
+    updateTrip();
+  } catch (err) {
+    console.error('[VOLT INIT ERROR]', err);
+  }
 
   function runBootSequence() {
     const boot = document.getElementById('bootScreen');
@@ -2359,6 +2363,13 @@
         boot.classList.add('boot-hidden');
         if (state.map) try { state.map.invalidateSize(); } catch (_) {}
       }, 500);
+
+      // Dismiss native Capacitor splash screen if present
+      try {
+        if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SplashScreen) {
+          window.Capacitor.Plugins.SplashScreen.hide();
+        }
+      } catch (_) {}
     }
 
     boot.addEventListener('click', finishBoot);
@@ -2371,7 +2382,13 @@
 
   runBootSequence();
 
-  if ('serviceWorker' in navigator) {
+  // Service Worker: Only for Web / Chrome PWA. NEVER in native Capacitor (iOS / Android)
+  const isNativeCapacitor = typeof window !== 'undefined' && !!window.Capacitor && (
+    (typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+    (typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() !== 'web')
+  );
+
+  if (!isNativeCapacitor && 'serviceWorker' in navigator) {
     const hadController = !!navigator.serviceWorker.controller;
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -2384,6 +2401,13 @@
       navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
         .catch((e) => console.warn('SW', e));
     });
+  } else if (isNativeCapacitor && 'serviceWorker' in navigator) {
+    // Clean up any stale service workers in the native webview
+    try {
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        regs.forEach((r) => r.unregister());
+      });
+    } catch (_) {}
   }
 
   if (new URLSearchParams(location.search).has('demo')) {
