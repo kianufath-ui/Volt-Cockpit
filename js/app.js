@@ -63,7 +63,18 @@
   function t(key) {
     const lang = state.lang || 'en';
     const dict = (window.I18N && window.I18N[lang]) || (window.I18N && window.I18N.en) || {};
-    return dict[key] !== undefined ? dict[key] : key;
+    if (dict[key] !== undefined) return dict[key];
+    const enDict = (window.I18N && window.I18N.en) || {};
+    return enDict[key] !== undefined ? enDict[key] : key;
+  }
+
+  function updateLanguageUI() {
+    const tag = $('#langTag');
+    if (tag) tag.textContent = (state.lang || 'en').toUpperCase();
+    $$('.lang-opt-row').forEach((row) => {
+      const l = row.getAttribute('data-lang');
+      row.classList.toggle('active', l === state.lang);
+    });
   }
 
   function setLanguage(lang, silent) {
@@ -81,6 +92,8 @@
       const val = t(k);
       if (val) el.textContent = val;
     });
+
+    updateLanguageUI();
 
     // Refresh dynamic tags
     const lTag = $('#layoutTag');
@@ -113,7 +126,7 @@
   }
 
   function toggleLanguage() {
-    const langs = ['en', 'id'];
+    const langs = ['en', 'id', 'ja', 'zh'];
     const idx = langs.indexOf(state.lang);
     const next = langs[(idx + 1) % langs.length];
     setLanguage(next, false);
@@ -121,6 +134,7 @@
 
   window.setDashboardLanguage = setLanguage;
   window.toggleDashboardLanguage = toggleLanguage;
+  window.updateLanguageUI = updateLanguageUI;
 
   /* ---------------- helpers ---------------- */
   function haversine(lat1, lon1, lat2, lon2) {
@@ -480,6 +494,31 @@
         : (cfg.tileUrlDark || cfg.tileUrl || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png?key=cb1_53nv_1_36016476114a28756464cdd2');
       state.tileLayer.setUrl(url);
     }
+
+    // Dynamic Header Theme Icon: Moon in Dark Mode, Sun in Light Mode
+    const btnHeader = $('#themeBtnHeader');
+    if (btnHeader) {
+      if (theme === 'dark') {
+        btnHeader.innerHTML = '<svg class="cp-ic" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+        btnHeader.setAttribute('title', 'Dark Theme (Tap to customize)');
+      } else {
+        btnHeader.innerHTML = '<svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
+        btnHeader.setAttribute('title', 'Light Theme (Tap to customize)');
+      }
+    }
+    const themeIcon = $('#themeIcon');
+    if (themeIcon) {
+      if (theme === 'dark') {
+        themeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+      } else {
+        themeIcon.innerHTML = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>';
+      }
+    }
+
+    // Re-render ambient lighting so light/dark palette adapts immediately
+    if (typeof updateAmbientLighting === 'function') {
+      updateAmbientLighting(true);
+    }
   }
 
   function applyResolvedTheme(force = false) {
@@ -534,6 +573,9 @@
     const nextMode = order[(idx + 1) % order.length];
     setThemeMode(nextMode);
   }
+  window.setThemeMode = setThemeMode;
+  window.setTheme = setTheme;
+  window.toggleTheme = toggleTheme;
 
   function setLayoutMode(mode) {
     state.layoutMode = mode;
@@ -584,13 +626,21 @@
       medium: 70,  // 31% - 70%: Yellow
       high: 100,   // 71% - 100%: Red
     },
-    // Subdued, whisper-thin automotive ambient glow palette [R, G, B, alpha]
+    // Subdued, whisper-thin automotive ambient glow palette for Dark Mode [R, G, B, alpha]
     colors: {
       standby:    { r: 37,  g: 99,  b: 235, a: 0.16 }, // Standby / drive inactive: Subtle Blue (#2563eb)
       activeZero: { r: 16,  g: 185, b: 129, a: 0.09 }, // 0% throttle while active: Whisper Green (#10b981)
       low:        { r: 16,  g: 185, b: 129, a: 0.14 }, // Low throttle: Soft Green (#10b981)
       medium:     { r: 234, g: 179, b: 8,   a: 0.20 }, // Medium throttle: Warm Amber (#eab308)
       high:       { r: 239, g: 68,  b: 68,  a: 0.28 }, // High/full throttle: Soft Sport Red (#ef4444)
+    },
+    // High-contrast, vibrant palette for Light Mode (multiply blend on bright map)
+    colorsLight: {
+      standby:    { r: 29,  g: 78,  b: 216, a: 0.44 }, // Royal Cobalt Blue (#1d4ed8)
+      activeZero: { r: 5,   g: 150, b: 105, a: 0.32 }, // Emerald Green (#059669)
+      low:        { r: 5,   g: 150, b: 105, a: 0.44 }, // Vivid Green (#059669)
+      medium:     { r: 217, g: 119, b: 6,   a: 0.52 }, // Deep Amber (#d97706)
+      high:       { r: 220, g: 38,  b: 38,  a: 0.64 }, // Sport Crimson (#dc2626)
     },
     // Labeled load approximation when direct throttle telemetry is absent from BMS
     approxMaxCurrent: 50, // Amperes at 100% rated load
@@ -600,15 +650,17 @@
   let lastAmbientState = { r: -1, g: -1, b: -1, a: -1, visible: null };
 
   function getAmbientColorForThrottle(throttlePct, isActive, isStandby) {
+    const isLight = (document.documentElement.getAttribute('data-theme') === 'light');
+    const c = isLight ? AMBIENT_CONFIG.colorsLight : AMBIENT_CONFIG.colors;
+
     if (isStandby || !isActive) {
-      return AMBIENT_CONFIG.colors.standby;
+      return c.standby;
     }
     const tVal = clamp(throttlePct || 0, 0, 100);
     if (tVal <= 0) {
-      return AMBIENT_CONFIG.colors.activeZero;
+      return c.activeZero;
     }
     const th = AMBIENT_CONFIG.thresholds;
-    const c = AMBIENT_CONFIG.colors;
 
     if (tVal <= th.low) {
       // 1% - 30%: Green, scaling intensity smoothly from activeZero to low
@@ -1576,16 +1628,19 @@
     const setV = $('#cpAlertSettingsView');
     const histV = $('#cpAlertHistoryView');
     const appV = $('#cpAppearanceView');
+    const langV = $('#cpLanguageView');
     const aboutV = $('#cpAboutView');
     if (mainV) mainV.hidden = (viewName !== 'main');
     if (setV) setV.hidden = (viewName !== 'settings');
     if (histV) histV.hidden = (viewName !== 'history');
     if (appV) appV.hidden = (viewName !== 'appearance');
+    if (langV) langV.hidden = (viewName !== 'language');
     if (aboutV) aboutV.hidden = (viewName !== 'about');
 
     if (viewName === 'settings') populateAlertSettings();
     if (viewName === 'history') renderAlertHistory(currentHistFilter);
     if (viewName === 'appearance') updateThemeModeUI();
+    if (viewName === 'language') updateLanguageUI();
   }
 
   function populateAlertSettings() {
@@ -1906,7 +1961,18 @@
     }
 
     on('#layoutToggleBtn', 'click', toggleLayoutMode);
-    on('#langToggleBtn', 'click', toggleLanguage);
+    on('#openLanguageBtn', 'click', () => showCpView('language'));
+    on('#langToggleBtn', 'click', () => showCpView('language'));
+    on('#backFromLanguageBtn', 'click', () => showCpView('main'));
+    $$('.lang-opt-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        const lang = row.getAttribute('data-lang');
+        if (lang) {
+          setLanguage(lang);
+          updateLanguageUI();
+        }
+      });
+    });
     on('#openAboutBtn', 'click', () => showCpView('about'));
     on('#backFromAboutBtn', 'click', () => showCpView('main'));
 
