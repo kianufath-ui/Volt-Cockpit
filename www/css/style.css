@@ -888,8 +888,8 @@ main { position: relative; flex: 1; min-height: 0; }
   z-index: 7;
   bottom: calc(48px + env(safe-area-inset-bottom));
   width: 254px;
-  max-height: calc(100dvh - 60px);
-  max-height: calc(100vh - 60px);
+  max-height: calc(100vh - max(env(safe-area-inset-top, 0px), 24px) - 48px - env(safe-area-inset-bottom, 0px));
+  max-height: calc(100dvh - max(env(safe-area-inset-top, 0px), 24px) - 48px - env(safe-area-inset-bottom, 0px));
   background: #191c20;
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 12px;
@@ -1017,12 +1017,12 @@ main { position: relative; flex: 1; min-height: 0; }
     right: max(env(safe-area-inset-right, 0px), 44px);
     bottom: calc(38px + env(safe-area-inset-bottom));
     width: 236px;
-    max-height: calc(100dvh - 46px);
-    max-height: calc(100vh - 46px);
+    max-height: calc(100vh - max(env(safe-area-inset-top, 0px), 18px) - 38px - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - max(env(safe-area-inset-top, 0px), 18px) - 38px - env(safe-area-inset-bottom, 0px));
   }
   .cp-row { min-height: 26px; padding: 4px 7px; font-size: 11px; }
   .cp-sh { padding: 3px 7px 1px; font-size: 7.5px; }
-  .cp-header { padding: 7px 10px 2px; }
+  .cp-header { padding: 8px 10px 4px; }
 }
 @media (orientation: landscape) and (min-width: 700px) {
   .d-volt b { font-size: 46px; }
