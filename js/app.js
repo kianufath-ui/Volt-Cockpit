@@ -41,6 +41,9 @@
     tripA: { distance: (Number(localStorage.getItem('tripAKm') || 0) || 0) * 1000 },
     tripB: { distance: (Number(localStorage.getItem('tripBKm') || 0) || 0) * 1000 },
     theme: localStorage.getItem('dashTheme') || 'dark',
+    themeMode: localStorage.getItem('dashThemeMode') || 'schedule',
+    themeDayStart: localStorage.getItem('dashThemeDayStart') || '06:00',
+    themeNightStart: localStorage.getItem('dashThemeNightStart') || '18:00',
     layoutMode: localStorage.getItem('dashLayout') || 'map',
     peakPower: 0,
     tileLayer: null,
@@ -80,8 +83,7 @@
     // Refresh dynamic tags
     const lTag = $('#layoutTag');
     if (lTag) lTag.textContent = state.layoutMode === 'telemetry' ? t('noMap') : t('withMap');
-    const tTag = $('#themeTag');
-    if (tTag) tTag.textContent = state.theme === 'light' ? t('light') : t('dark');
+    updateThemeModeUI();
     const dTag = $('#demoTag');
     if (dTag) dTag.textContent = state.demo ? t('on') : t('off');
     const fTag = $('#followTag');
@@ -421,12 +423,42 @@
     toast(t('toastAllTripsReset'));
   }
 
+  function evaluateScheduleTheme(dayStart = '06:00', nightStart = '18:00') {
+    const now = new Date();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+
+    const [dHour, dMin] = (dayStart || '06:00').split(':').map(Number);
+    const dayMins = (isNaN(dHour) ? 6 : dHour) * 60 + (isNaN(dMin) ? 0 : dMin);
+
+    const [nHour, nMin] = (nightStart || '18:00').split(':').map(Number);
+    const nightMins = (isNaN(nHour) ? 18 : nHour) * 60 + (isNaN(nMin) ? 0 : nMin);
+
+    if (dayMins < nightMins) {
+      return (currentMins >= dayMins && currentMins < nightMins) ? 'light' : 'dark';
+    } else {
+      return (currentMins >= dayMins || currentMins < nightMins) ? 'light' : 'dark';
+    }
+  }
+
+  function resolveTheme() {
+    const mode = state.themeMode || 'schedule';
+    if (mode === 'system') {
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        return 'light';
+      }
+      return 'dark';
+    }
+    if (mode === 'schedule') {
+      return evaluateScheduleTheme(state.themeDayStart, state.themeNightStart);
+    }
+    if (mode === 'light') return 'light';
+    return 'dark';
+  }
+
   function setTheme(theme) {
     state.theme = theme;
     try { localStorage.setItem('dashTheme', theme); } catch (e) {}
     document.documentElement.setAttribute('data-theme', theme);
-    const tag = $('#themeTag');
-    if (tag) tag.textContent = theme === 'light' ? t('light') : t('dark');
     const metaTheme = document.querySelector('meta[name="theme-color"]');
     if (metaTheme) metaTheme.setAttribute('content', theme === 'light' ? '#ebf1f6' : '#070b10');
     const cfg = mapConfig();
@@ -438,10 +470,57 @@
     }
   }
 
+  function applyResolvedTheme(force = false) {
+    const target = resolveTheme();
+    if (force || state.theme !== target) {
+      setTheme(target);
+    }
+    updateThemeModeUI();
+  }
+
+  function setThemeMode(mode) {
+    state.themeMode = mode;
+    try { localStorage.setItem('dashThemeMode', mode); } catch (e) {}
+    applyResolvedTheme(true);
+    const modeLabels = {
+      system: t('themeSystem') || 'Match Device',
+      schedule: t('themeSchedule') || 'Day / Night Schedule',
+      dark: t('themeDark') || 'Always Dark',
+      light: t('themeLight') || 'Always Light',
+    };
+    toast(modeLabels[mode] || mode);
+  }
+
+  function updateThemeModeUI() {
+    const tag = $('#themeTag');
+    if (tag) {
+      const mode = state.themeMode || 'schedule';
+      if (mode === 'system') tag.textContent = t('modeDevice') || 'DEVICE';
+      else if (mode === 'schedule') tag.textContent = t('modeSchedule') || 'AUTO';
+      else if (mode === 'light') tag.textContent = t('light') || 'LIGHT';
+      else tag.textContent = t('dark') || 'DARK';
+    }
+
+    $$('.theme-opt-row').forEach((row) => {
+      const m = row.getAttribute('data-mode');
+      row.classList.toggle('active', m === state.themeMode);
+    });
+
+    const dInp = $('#themeDayStart');
+    if (dInp && document.activeElement !== dInp) {
+      dInp.value = state.themeDayStart || '06:00';
+    }
+    const nInp = $('#themeNightStart');
+    if (nInp && document.activeElement !== nInp) {
+      nInp.value = state.themeNightStart || '18:00';
+    }
+  }
+
   function toggleTheme() {
-    const next = state.theme === 'light' ? 'dark' : 'light';
-    setTheme(next);
-    toast(next === 'light' ? t('toastLightMode') : t('toastDarkMode'));
+    const order = ['schedule', 'system', 'dark', 'light'];
+    const idx = order.indexOf(state.themeMode);
+    const nextMode = order[(idx + 1) % order.length];
+    setThemeMode(nextMode);
   }
 
   function setLayoutMode(mode) {
@@ -1299,6 +1378,10 @@
     if (el) el.textContent = t;
     const el2 = $('#clock2');
     if (el2) el2.textContent = t;
+
+    if (state.themeMode === 'schedule') {
+      applyResolvedTheme();
+    }
   }
 
   function setMode(mode) {
@@ -1320,12 +1403,15 @@
     const mainV = $('#cpMainView');
     const setV = $('#cpAlertSettingsView');
     const histV = $('#cpAlertHistoryView');
+    const appV = $('#cpAppearanceView');
     if (mainV) mainV.hidden = (viewName !== 'main');
     if (setV) setV.hidden = (viewName !== 'settings');
     if (histV) histV.hidden = (viewName !== 'history');
+    if (appV) appV.hidden = (viewName !== 'appearance');
 
     if (viewName === 'settings') populateAlertSettings();
     if (viewName === 'history') renderAlertHistory(currentHistFilter);
+    if (viewName === 'appearance') updateThemeModeUI();
   }
 
   function populateAlertSettings() {
@@ -1586,9 +1672,46 @@
     on('#setResetBtn', 'click', resetTrip);
     on('#resetTripABtn', 'click', resetTripA);
     on('#resetTripBBtn', 'click', resetTripB);
-    on('#themeToggleBtn', 'click', toggleTheme);
+    on('#openAppearanceBtn', 'click', () => showCpView('appearance'));
+    on('#themeToggleBtn', 'click', () => showCpView('appearance'));
+    on('#themeBtnHeader', 'click', () => showCpView('appearance'));
+    on('#backFromAppearanceBtn', 'click', () => showCpView('main'));
+
+    $$('.theme-opt-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        const mode = row.getAttribute('data-mode');
+        if (mode) setThemeMode(mode);
+      });
+    });
+
+    on('#themeDayStart', 'change', (e) => {
+      state.themeDayStart = e.target.value || '06:00';
+      try { localStorage.setItem('dashThemeDayStart', state.themeDayStart); } catch (_) {}
+      if (state.themeMode === 'schedule') applyResolvedTheme(true);
+    });
+
+    on('#themeNightStart', 'change', (e) => {
+      state.themeNightStart = e.target.value || '18:00';
+      try { localStorage.setItem('dashThemeNightStart', state.themeNightStart); } catch (_) {}
+      if (state.themeMode === 'schedule') applyResolvedTheme(true);
+    });
+
+    // Device system theme change listener
+    if (window.matchMedia) {
+      const mql = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleSystemThemeChange = () => {
+        if (state.themeMode === 'system') {
+          applyResolvedTheme(true);
+        }
+      };
+      if (mql.addEventListener) {
+        mql.addEventListener('change', handleSystemThemeChange);
+      } else if (mql.addListener) {
+        mql.addListener(handleSystemThemeChange);
+      }
+    }
+
     on('#layoutToggleBtn', 'click', toggleLayoutMode);
-    on('#themeBtnHeader', 'click', toggleTheme);
     on('#langToggleBtn', 'click', toggleLanguage);
 
     on('#gpsBtn', 'click', () => {
@@ -1946,7 +2069,7 @@
   /* ---------------- boot ---------------- */
   buildSpeedTicks();
   setLanguage(state.lang, true);
-  setTheme(state.theme);
+  applyResolvedTheme(true);
   setLayoutMode(state.layoutMode);
   initMap();
   initBms();

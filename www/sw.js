@@ -1,5 +1,5 @@
 /* Volt — offline shell + map tile cache */
-const SHELL_CACHE = 'scd-shell-v32';
+const SHELL_CACHE = 'scd-shell-v33';
 const TILE_CACHE = 'scd-tiles-v4';
 const TILE_LIMIT = 900;
 

@@ -265,10 +265,11 @@
                 <span class="cp-rl" data-i18n="dashboardMode">Dashboard Mode</span>
                 <span class="cp-tag" id="layoutTag">WITH MAP</span>
               </button>
-              <button id="themeToggleBtn" class="cp-row cp-act">
+              <button id="openAppearanceBtn" class="cp-row cp-act">
                 <svg class="cp-ic" id="themeIcon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
                 <span class="cp-rl" data-i18n="appearance">Appearance</span>
-                <span class="cp-tag" id="themeTag">DARK</span>
+                <span class="cp-tag" id="themeTag">AUTO</span>
+                <svg class="cp-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
               </button>
               <button id="langToggleBtn" class="cp-row cp-act">
                 <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
@@ -350,6 +351,81 @@
                 <svg class="cp-ic" viewBox="0 0 24 24" style="stroke:#ff8f8f;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                 <span class="cp-rl" data-i18n="resetAllTrips">Reset All Trips</span>
               </button>
+            </div>
+          </div>
+
+          <!-- SUBVIEW: Appearance Settings -->
+          <div id="cpAppearanceView" hidden>
+            <div class="cp-header">
+              <button id="backFromAppearanceBtn" class="cp-btn-back" title="Back" aria-label="Back">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <span class="cp-title" data-i18n="appearanceSettings">Appearance</span>
+              <div class="cp-hr">
+                <button class="cp-x close-settings-btn" title="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+
+            <!-- Theme Modes -->
+            <div class="cp-sect">
+              <div class="cp-sh" data-i18n="themeMode">Theme Mode</div>
+
+              <!-- Option 1: Schedule (Auto day/night) -->
+              <div class="cp-row cp-act theme-opt-row" data-mode="schedule">
+                <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <div class="theme-opt-info">
+                  <span class="cp-rl" data-i18n="themeSchedule">Day / Night Schedule</span>
+                  <span class="theme-opt-desc" data-i18n="themeScheduleDesc">Light during day, dark at night</span>
+                </div>
+                <span class="theme-radio-dot"></span>
+              </div>
+
+              <!-- Option 2: Match Device / System -->
+              <div class="cp-row cp-act theme-opt-row" data-mode="system">
+                <svg class="cp-ic" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                <div class="theme-opt-info">
+                  <span class="cp-rl" data-i18n="themeSystem">Match Device</span>
+                  <span class="theme-opt-desc" data-i18n="themeSystemDesc">Follows phone dark / light theme</span>
+                </div>
+                <span class="theme-radio-dot"></span>
+              </div>
+
+              <!-- Option 3: Always Dark -->
+              <div class="cp-row cp-act theme-opt-row" data-mode="dark">
+                <svg class="cp-ic" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                <div class="theme-opt-info">
+                  <span class="cp-rl" data-i18n="themeDark">Always Dark</span>
+                </div>
+                <span class="theme-radio-dot"></span>
+              </div>
+
+              <!-- Option 4: Always Light -->
+              <div class="cp-row cp-act theme-opt-row" data-mode="light">
+                <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <div class="theme-opt-info">
+                  <span class="cp-rl" data-i18n="themeLight">Always Light</span>
+                </div>
+                <span class="theme-radio-dot"></span>
+              </div>
+            </div>
+
+            <!-- Schedule Hours Config -->
+            <div class="cp-sect" id="themeScheduleSect">
+              <div class="cp-sh" data-i18n="scheduleHours">Schedule Hours</div>
+              <div class="cp-row cp-row-input">
+                <div class="theme-time-label">
+                  <svg class="cp-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+                  <span class="cp-rl" data-i18n="dayStart">Day (Light Mode)</span>
+                </div>
+                <input type="time" id="themeDayStart" class="cp-time-inp" value="06:00">
+              </div>
+              <div class="cp-row cp-row-input">
+                <div class="theme-time-label">
+                  <svg class="cp-ic" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                  <span class="cp-rl" data-i18n="nightStart">Night (Dark Mode)</span>
+                </div>
+                <input type="time" id="themeNightStart" class="cp-time-inp" value="18:00">
+              </div>
             </div>
           </div>
 
