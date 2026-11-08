@@ -1321,6 +1321,38 @@ main { position: relative; flex: 1; min-height: 0; }
   pointer-events: auto;
 }
 
+/* ============================================================
+   DYNAMIC AMBIENT EDGE LIGHTING (MAPS MODE ONLY)
+   Subtle automotive ambient glow responding dynamically to throttle
+   ============================================================ */
+.ambient-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: clamp(16px, 3.5vw, 36px);
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), background 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, background;
+}
+
+.ambient-edge-left {
+  left: 0;
+}
+
+.ambient-edge-right {
+  right: 0;
+}
+
+/* Strict requirement 7: disable in Telemetry / non-maps mode completely */
+.dash.mode-telemetry .ambient-edge,
+.dash-page.page-telemetry .ambient-edge {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Page Indicator Dots in Bottom Bar (Hidden by user request) */
 .dash-page-dots {
   display: none !important;
@@ -2886,6 +2918,12 @@ main { position: relative; flex: 1; min-height: 0; }
 /* Settings Row with Input Controls */
 .cp-row-input {
   justify-content: space-between;
+}
+
+.cp-row-lbl-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .cp-val-ctrl {

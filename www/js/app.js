@@ -45,6 +45,7 @@
     themeDayStart: localStorage.getItem('dashThemeDayStart') || '06:00',
     themeNightStart: localStorage.getItem('dashThemeNightStart') || '18:00',
     layoutMode: localStorage.getItem('dashLayout') || 'map',
+    ambientLighting: localStorage.getItem('dashAmbientLighting') !== 'false',
     peakPower: 0,
     peakCurrent: 0,
     tileLayer: null,
@@ -557,6 +558,14 @@
       dotTel.classList.toggle('active', mode === 'telemetry');
       dotTel.setAttribute('aria-selected', mode === 'telemetry');
     }
+
+    // Strict Condition: Maps Mode Only — Hide toggle in non-Maps mode, show in Maps mode
+    const ambientRow = $('#ambientToggleRow');
+    if (ambientRow) {
+      ambientRow.style.display = (mode === 'map') ? 'flex' : 'none';
+    }
+    updateAmbientLighting(true);
+
     if (mode === 'map' && state.map) {
       setTimeout(() => { try { state.map.invalidateSize(); } catch (e) {} }, 120);
     }
@@ -566,6 +575,142 @@
     const next = state.layoutMode === 'telemetry' ? 'map' : 'telemetry';
     setLayoutMode(next);
   }
+
+  /* ---------------- Dynamic Ambient Edge Lighting (Maps Mode Only) ---------------- */
+  const AMBIENT_CONFIG = {
+    // Configurable throttle percentage thresholds
+    thresholds: {
+      low: 30,     // 1% - 30%: Green
+      medium: 70,  // 31% - 70%: Yellow
+      high: 100,   // 71% - 100%: Red
+    },
+    // Subdued, whisper-thin automotive ambient glow palette [R, G, B, alpha]
+    colors: {
+      standby:    { r: 37,  g: 99,  b: 235, a: 0.16 }, // Standby / drive inactive: Subtle Blue (#2563eb)
+      activeZero: { r: 16,  g: 185, b: 129, a: 0.09 }, // 0% throttle while active: Whisper Green (#10b981)
+      low:        { r: 16,  g: 185, b: 129, a: 0.14 }, // Low throttle: Soft Green (#10b981)
+      medium:     { r: 234, g: 179, b: 8,   a: 0.20 }, // Medium throttle: Warm Amber (#eab308)
+      high:       { r: 239, g: 68,  b: 68,  a: 0.28 }, // High/full throttle: Soft Sport Red (#ef4444)
+    },
+    // Labeled load approximation when direct throttle telemetry is absent from BMS
+    approxMaxCurrent: 50, // Amperes at 100% rated load
+  };
+  window.AMBIENT_CONFIG = AMBIENT_CONFIG;
+
+  let lastAmbientState = { r: -1, g: -1, b: -1, a: -1, visible: null };
+
+  function getAmbientColorForThrottle(throttlePct, isActive, isStandby) {
+    if (isStandby || !isActive) {
+      return AMBIENT_CONFIG.colors.standby;
+    }
+    const tVal = clamp(throttlePct || 0, 0, 100);
+    if (tVal <= 0) {
+      return AMBIENT_CONFIG.colors.activeZero;
+    }
+    const th = AMBIENT_CONFIG.thresholds;
+    const c = AMBIENT_CONFIG.colors;
+
+    if (tVal <= th.low) {
+      // 1% - 30%: Green, scaling intensity smoothly from activeZero to low
+      const ratio = tVal / th.low;
+      return {
+        r: c.low.r,
+        g: c.low.g,
+        b: c.low.b,
+        a: c.activeZero.a + (c.low.a - c.activeZero.a) * ratio
+      };
+    } else if (tVal <= th.medium) {
+      // 31% - 70%: Smooth interpolation between Green (low) and Yellow (medium)
+      const ratio = (tVal - th.low) / (th.medium - th.low);
+      return {
+        r: Math.round(c.low.r + (c.medium.r - c.low.r) * ratio),
+        g: Math.round(c.low.g + (c.medium.g - c.low.g) * ratio),
+        b: Math.round(c.low.b + (c.medium.b - c.low.b) * ratio),
+        a: c.low.a + (c.medium.a - c.low.a) * ratio
+      };
+    } else {
+      // 71% - 100%: Smooth interpolation between Yellow (medium) and Red (high)
+      const ratio = (tVal - th.medium) / (th.high - th.medium);
+      return {
+        r: Math.round(c.medium.r + (c.high.r - c.medium.r) * ratio),
+        g: Math.round(c.medium.g + (c.high.g - c.medium.g) * ratio),
+        b: Math.round(c.medium.b + (c.high.b - c.medium.b) * ratio),
+        a: c.medium.a + (c.high.a - c.medium.a) * ratio
+      };
+    }
+  }
+
+  function updateAmbientLighting(force) {
+    const leftEl = $('#ambientEdgeLeft');
+    const rightEl = $('#ambientEdgeRight');
+    if (!leftEl || !rightEl) return;
+
+    // Strict Condition 7: ONLY available and active when layoutMode === 'map' AND ambientLighting === true
+    const isMapMode = (state.layoutMode === 'map');
+    const isEnabled = state.ambientLighting && isMapMode;
+
+    if (!isEnabled) {
+      if (lastAmbientState.visible !== false || force) {
+        leftEl.style.opacity = '0';
+        rightEl.style.opacity = '0';
+        lastAmbientState.visible = false;
+      }
+      return;
+    }
+
+    // Determine vehicle active & standby status
+    const isConnected = (state.bmsStatus === 'connected' || state.demo);
+    const d = state.bmsData;
+    const isDischargeActive = !d || (d.dischargeMos !== false);
+    const isStandby = !isConnected || !isDischargeActive;
+    const isActive = isConnected && isDischargeActive;
+
+    let throttlePct = 0;
+    if (isActive && d) {
+      if (typeof d.throttlePct === 'number') {
+        throttlePct = d.throttlePct;
+      } else if (d.current < -0.2) {
+        // Labeled load approximation from motor discharge current
+        const maxA = (state.settings && state.settings.maxDischargeA > 0)
+          ? state.settings.maxDischargeA
+          : AMBIENT_CONFIG.approxMaxCurrent;
+        throttlePct = clamp(Math.round((Math.abs(d.current) / (maxA * 0.75)) * 100), 0, 100);
+      } else {
+        throttlePct = 0;
+      }
+    }
+
+    const col = getAmbientColorForThrottle(throttlePct, isActive, isStandby);
+
+    // Deadband check to eliminate flickering from noisy telemetry
+    if (!force && lastAmbientState.visible === true &&
+        Math.abs(lastAmbientState.r - col.r) < 2 &&
+        Math.abs(lastAmbientState.g - col.g) < 2 &&
+        Math.abs(lastAmbientState.b - col.b) < 2 &&
+        Math.abs(lastAmbientState.a - col.a) < 0.02) {
+      return;
+    }
+
+    lastAmbientState = { r: col.r, g: col.g, b: col.b, a: col.a, visible: true };
+
+    const { r, g, b, a } = col;
+    const a1 = a.toFixed(3);
+    const a2 = (a * 0.50).toFixed(3);
+    const a3 = (a * 0.18).toFixed(3);
+
+    const gradLeft = `linear-gradient(90deg, rgba(${r},${g},${b},${a1}) 0%, rgba(${r},${g},${b},${a2}) 28%, rgba(${r},${g},${b},${a3}) 58%, transparent 100%)`;
+    const gradRight = `linear-gradient(270deg, rgba(${r},${g},${b},${a1}) 0%, rgba(${r},${g},${b},${a2}) 28%, rgba(${r},${g},${b},${a3}) 58%, transparent 100%)`;
+
+    leftEl.style.background = gradLeft;
+    rightEl.style.background = gradRight;
+    leftEl.style.opacity = '1';
+    rightEl.style.opacity = '1';
+  }
+  window.updateAmbientLighting = updateAmbientLighting;
+  window.setLayoutMode = setLayoutMode;
+  window.onBmsData = onBmsData;
+  window.onBmsStatus = onBmsStatus;
+  window.state = state;
 
   /* ---------------- GPS ---------------- */
   function startGps() {
@@ -790,6 +935,7 @@
       const bn = $('#bmsName'); if (bn) bn.textContent = t('bmsNotConnected') || 'belum terhubung';
       const cl2 = $('#connectLabel'); if (cl2) cl2.textContent = t('connectBms') || 'Connect BMS';
     }
+    updateAmbientLighting();
   }
 
   /* ---------------- Universal Bluetooth Scanner Modal ---------------- */
@@ -1244,6 +1390,7 @@
       }
 
       renderCells(d.cells, d.minV, d.maxV);
+      updateAmbientLighting();
     } catch (domErr) {
       console.warn('[App] renderTelemetry DOM error:', domErr);
     }
@@ -1704,6 +1851,26 @@
     on('#themeBtnHeader', 'click', () => showCpView('appearance'));
     on('#backFromAppearanceBtn', 'click', () => showCpView('main'));
 
+    // Dynamic Ambient Edge Lighting toggle
+    const chkAmbient = $('#chkAmbientLighting');
+    if (chkAmbient) {
+      chkAmbient.checked = state.ambientLighting;
+      chkAmbient.addEventListener('change', () => {
+        state.ambientLighting = chkAmbient.checked;
+        try { localStorage.setItem('dashAmbientLighting', String(state.ambientLighting)); } catch (_) {}
+        updateAmbientLighting(true);
+      });
+    }
+    const ambientRow = $('#ambientToggleRow');
+    if (ambientRow && chkAmbient) {
+      ambientRow.addEventListener('click', (e) => {
+        if (e.target !== chkAmbient) {
+          chkAmbient.checked = !chkAmbient.checked;
+          chkAmbient.dispatchEvent(new Event('change'));
+        }
+      });
+    }
+
     $$('.theme-opt-row').forEach((row) => {
       row.addEventListener('click', () => {
         const mode = row.getAttribute('data-mode');
@@ -2059,8 +2226,12 @@
       // Mode berkendara: arus MINUS (daya keluar / discharge), watt minus
       const current = -(5 + (kmh / 35) * 10 + Math.sin(simT / 3) * 2.5);
       const power = packV * current; // minus Watt saat power output
+      const accel = Math.cos(simT / 5);
+      let demoThrottle = 25 + accel * 45 + (Math.sin(simT * 1.5) * 12);
+      if (demoThrottle < 0) demoThrottle = 0;
+      if (demoThrottle > 100) demoThrottle = 100;
       onBmsData({
-        type: 'telemetry', packV, current, power,
+        type: 'telemetry', packV, current, power, throttlePct: Math.round(demoThrottle),
         soc, soh: 100, remainAh: (soc / 100) * 30, nominalAh: 30, cycles: 100,
         mosTemp: 31.9, t1: 34.5, t2: 34.3, t3: 0, t4: 0, t5: 0,
         balanceA: -0.6, errors: 0, chargeMos: true, dischargeMos: true,
@@ -2084,6 +2255,7 @@
     updateSpeed(0);
     setPill('gps', 'off', 'GPS');
     syncGpsButton();
+    updateAmbientLighting(true);
     toast(t('toastDemoOff'));
   }
 

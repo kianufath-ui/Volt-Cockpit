@@ -71,6 +71,10 @@
             <div id="map" class="bgmap"></div>
             <div class="dash-shade"></div>
 
+            <!-- Dynamic Ambient Edge Lighting (Maps Mode Exclusive) -->
+            <div class="ambient-edge ambient-edge-left" id="ambientEdgeLeft" aria-hidden="true"></div>
+            <div class="ambient-edge ambient-edge-right" id="ambientEdgeRight" aria-hidden="true"></div>
+
             <!-- Apple Maps Style Pure White Navigation Chevron HUD -->
             <div id="navArrowHud" class="nav-arrow-hud" aria-hidden="true">
               <div class="nav-arrow-body">
@@ -290,6 +294,13 @@
                 <span class="cp-rl" data-i18n="dashboardMode">Dashboard Mode</span>
                 <span class="cp-tag" id="layoutTag">WITH MAP</span>
               </button>
+              <div class="cp-row cp-row-input cp-act" id="ambientToggleRow">
+                <div class="cp-row-lbl-wrap">
+                  <svg class="cp-ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16"/></svg>
+                  <span class="cp-rl" data-i18n="ambientLighting">Ambient Edge Light</span>
+                </div>
+                <input type="checkbox" id="chkAmbientLighting" class="cp-toggle-chk" aria-label="Toggle Dynamic Ambient Edge Lighting">
+              </div>
               <button id="openAppearanceBtn" class="cp-row cp-act">
                 <svg class="cp-ic" id="themeIcon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
                 <span class="cp-rl" data-i18n="appearance">Appearance</span>
